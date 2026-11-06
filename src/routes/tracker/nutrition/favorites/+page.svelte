@@ -27,10 +27,11 @@
 		customFiberPer100: number | null;
 		customSaltPer100: number | null;
 		defaultAmount: number;
-		defaultUnit: 'g' | 'ml' | 'piece';
+		defaultUnit: 'g' | 'ml' | 'piece' | 'portion';
 		defaultGramsPerPiece: number | null;
 		useCount: number;
 		lastUsedAt: number | null;
+		createdAt?: number | null;
 	};
 
 	let { data } = $props();
@@ -40,10 +41,13 @@
 	let editing = $state<Favorite | null>(null);
 	let editName = $state('');
 	let editAmount = $state('');
-	let editUnit = $state<'g' | 'ml' | 'piece'>('g');
+	let editUnit = $state<'g' | 'ml' | 'piece' | 'portion'>('g');
 	let editGpp = $state('');
 	let favSaving = $state(false);
 	let favSaved = $state(false);
+
+	let searchQuery = $state('');
+	let sortMode = $state<'usage' | 'alpha' | 'date'>('usage');
 
 	type MealComponent = {
 		id?: string;
@@ -53,7 +57,7 @@
 		displayName: string;
 		imageUrl: string | null;
 		amount: number;
-		unit: 'g' | 'ml' | 'piece';
+		unit: 'g' | 'ml' | 'piece' | 'portion';
 		gramsPerPiece: number | null;
 		kcalPer100: number | null;
 		proteinPer100: number | null;
@@ -70,12 +74,45 @@
 		caffeineDrinkId: string | null;
 		useCount: number;
 		lastUsedAt: number | null;
+		createdAt?: number | null;
 		components: MealComponent[];
 	};
 	let mealFavorites = $state<MealFavorite[]>([]);
 	let editingMeal = $state<MealFavorite | null>(null);
 	let newMealOpen = $state(false);
 	let newIngredientOpen = $state(false);
+
+	function sortItems<T extends { displayName: string; useCount: number; lastUsedAt: number | null; createdAt?: number | null }>(items: T[], mode: 'usage' | 'alpha' | 'date'): T[] {
+		const copy = [...items];
+		if (mode === 'alpha') {
+			return copy.sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }));
+		}
+		if (mode === 'date') {
+			return copy.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+		}
+		return copy.sort((a, b) => {
+			const ua = a.useCount ?? 0;
+			const ub = b.useCount ?? 0;
+			if (ub !== ua) return ub - ua;
+			return (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0);
+		});
+	}
+
+	const filteredFavorites = $derived.by(() => {
+		const query = searchQuery.trim().toLowerCase();
+		const list = query
+			? favorites.filter((f) => f.displayName.toLowerCase().includes(query))
+			: favorites;
+		return sortItems(list, sortMode);
+	});
+
+	const filteredMealFavorites = $derived.by(() => {
+		const query = searchQuery.trim().toLowerCase();
+		const list = query
+			? mealFavorites.filter((f) => f.displayName.toLowerCase().includes(query) || f.components.some((c) => c.displayName.toLowerCase().includes(query)))
+			: mealFavorites;
+		return sortItems(list, sortMode);
+	});
 
 	async function loadMealFavorites() {
 		try {
@@ -159,7 +196,7 @@
 	// für die Live-kcal-/Makro-Anzeige in der Edit-Bubble.
 	function editEffectiveGrams(): number {
 		const amt = parseFloat(String(editAmount).replace(',', '.')) || 0;
-		if (editUnit === 'piece') return amt * (parseFloat(String(editGpp).replace(',', '.')) || 0);
+		if (editUnit === 'piece' || editUnit === 'portion') return amt * (parseFloat(String(editGpp).replace(',', '.')) || 0);
 		return amt;
 	}
 
@@ -227,40 +264,97 @@
 			     style="border-color: #FB923C; border-top-color: transparent"></div>
 		</div>
 	{:else}
-		<div class="nutrition-section-heading">
-			<h2 class="nutrition-section-title">{t.nutrition_ingredients}</h2>
-			<button onclick={() => (newIngredientOpen = true)} class="nutrition-new-template">+ {t.nutrition_new_ingredient}</button>
-		</div>
-		{#if favorites.length === 0}
-			<p class="nutrition-empty-copy">{t.nutrition_no_favorites_yet}</p>
-		{:else}
-		<div class="nutrition-list-surface">
-			{#each favorites as f (f.id)}
-				{#if !f.imageUrl && f.genericFoodId && f.category}
-					{#snippet favoriteIcon()}{@render catIcon(f.category, 27)}{/snippet}
-					<NutritionFoodRow title={f.displayName} meta={`${f.defaultAmount}${f.defaultUnit === 'piece' ? ` ${t.nutrition_unit_short_piece}` : f.defaultUnit}`} trailing={`${f.useCount}× ${t.nutrition_used}`} leading={favoriteIcon} onactivate={() => startEdit(f)} />
-				{:else}
-					<NutritionFoodRow title={f.displayName} meta={`${f.defaultAmount}${f.defaultUnit === 'piece' ? ` ${t.nutrition_unit_short_piece}` : f.defaultUnit}`} trailing={`${f.useCount}× ${t.nutrition_used}`} imageUrl={f.imageUrl} onactivate={() => startEdit(f)} />
+		<!-- Barra de búsqueda y selector de orden -->
+		<div class="nutrition-filter-bar">
+			<div class="nutrition-search-box">
+				<svg class="nutrition-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<circle cx="11" cy="11" r="8"/>
+					<line x1="21" y1="21" x2="16.65" y2="16.65"/>
+				</svg>
+				<input
+					type="text"
+					bind:value={searchQuery}
+					placeholder="Search favorites..."
+					class="nutrition-search-input"
+				/>
+				{#if searchQuery.trim()}
+					<button
+						type="button"
+						onclick={() => (searchQuery = '')}
+						class="nutrition-search-clear"
+						aria-label="Clear search"
+					>
+						✕
+					</button>
 				{/if}
-			{/each}
-		</div>
-		{/if}
-
-		<div class="nutrition-section-heading">
-			<h2 class="nutrition-section-title">{t.nutrition_meal_favorites_section}</h2>
-			<button onclick={() => (newMealOpen = true)}
-			        class="nutrition-new-template">
-				+ {t.nutrition_new_meal_favorite}
-			</button>
-		</div>
-		{#if mealFavorites.length === 0}
-			<p class="nutrition-empty-copy">{t.nutrition_no_meal_favorites}</p>
-		{:else}
-			<div class="nutrition-list-surface">
-				{#each mealFavorites as f (f.id)}
-					<NutritionFoodRow title={f.displayName} meta={`${f.components.length} ${t.nutrition_ingredients}`} trailing={`${f.useCount}× ${t.nutrition_used}`} imageUrl={f.imageUrl} onactivate={() => startEditMeal(f)} />
-				{/each}
 			</div>
+
+			<div class="nutrition-sort-row">
+				<span class="nutrition-sort-label">Sort:</span>
+				<button
+					type="button"
+					class="sort-pill"
+					class:active={sortMode === 'usage'}
+					onclick={() => (sortMode = 'usage')}
+				>
+					Most used
+				</button>
+				<button
+					type="button"
+					class="sort-pill"
+					class:active={sortMode === 'alpha'}
+					onclick={() => (sortMode = 'alpha')}
+				>
+					A − Z
+				</button>
+				<button
+					type="button"
+					class="sort-pill"
+					class:active={sortMode === 'date'}
+					onclick={() => (sortMode = 'date')}
+				>
+					Date added
+				</button>
+			</div>
+		</div>
+
+		{#if favorites.length === 0 && mealFavorites.length === 0}
+			<p class="nutrition-empty-copy">{t.nutrition_no_favorites_yet}</p>
+		{:else if searchQuery.trim() && filteredFavorites.length === 0 && filteredMealFavorites.length === 0}
+			<p class="nutrition-empty-copy">No favorites match "{searchQuery}".</p>
+		{:else}
+			<div class="nutrition-section-heading">
+				<h2 class="nutrition-section-title">{t.nutrition_ingredients} ({filteredFavorites.length})</h2>
+				<button onclick={() => (newIngredientOpen = true)} class="nutrition-new-template">+ {t.nutrition_new_ingredient}</button>
+			</div>
+			{#if filteredFavorites.length === 0}
+				<p class="nutrition-empty-copy">{searchQuery.trim() ? 'No ingredients match your search.' : t.nutrition_no_favorites_yet}</p>
+			{:else}
+				<div class="nutrition-list-surface">
+					{#each filteredFavorites as f (f.id)}
+						{#if !f.imageUrl && f.genericFoodId && f.category}
+							{#snippet favoriteIcon()}{@render catIcon(f.category, 27)}{/snippet}
+							<NutritionFoodRow title={f.displayName} meta={`${f.defaultAmount}${f.defaultUnit === 'piece' ? ` ${t.nutrition_unit_short_piece}` : f.defaultUnit}`} trailing={`${f.useCount}× ${t.nutrition_used}`} leading={favoriteIcon} onactivate={() => startEdit(f)} />
+						{:else}
+							<NutritionFoodRow title={f.displayName} meta={`${f.defaultAmount}${f.defaultUnit === 'piece' ? ` ${t.nutrition_unit_short_piece}` : f.defaultUnit}`} trailing={`${f.useCount}× ${t.nutrition_used}`} imageUrl={f.imageUrl} onactivate={() => startEdit(f)} />
+						{/if}
+					{/each}
+				</div>
+			{/if}
+
+			<div class="nutrition-section-heading">
+				<h2 class="nutrition-section-title">{t.nutrition_meal_favorites_section} ({filteredMealFavorites.length})</h2>
+				<button onclick={() => (newMealOpen = true)} class="nutrition-new-template">+ {t.nutrition_new_meal_favorite}</button>
+			</div>
+			{#if filteredMealFavorites.length === 0}
+				<p class="nutrition-empty-copy">{searchQuery.trim() ? 'No meal favorites match your search.' : t.nutrition_no_meal_favorites}</p>
+			{:else}
+				<div class="nutrition-list-surface">
+					{#each filteredMealFavorites as f (f.id)}
+						<NutritionFoodRow title={f.displayName} meta={`${f.components.length} ${t.nutrition_ingredients}`} trailing={`${f.useCount}× ${t.nutrition_used}`} imageUrl={f.imageUrl} onactivate={() => startEditMeal(f)} />
+					{/each}
+				</div>
+			{/if}
 		{/if}
 	{/if}
 </main>
@@ -307,9 +401,18 @@
 						<div class="manage-settings-row nutrition-amount-row">
 							<span class="manage-settings-label">{t.nutrition_amount}</span>
 							<input type="number" inputmode="decimal" bind:value={editAmount} min="0" step="any" class="manage-settings-input" />
-							<select bind:value={editUnit} class="nutrition-unit-select"><option value="g">g</option><option value="ml">ml</option><option value="piece">{t.nutrition_unit_piece}</option></select>
+							<select bind:value={editUnit} class="nutrition-unit-select">
+								<option value="portion">{t.nutrition_unit_portion}</option>
+								<option value="g">g</option>
+								<option value="ml">ml</option>
+								<option value="piece">{t.nutrition_unit_piece}</option>
+							</select>
 						</div>
-						{#if editUnit === 'piece'}<label class="manage-settings-row nutrition-edit-row"><span class="manage-settings-label">{t.nutrition_grams_per_piece}</span><input type="number" inputmode="decimal" bind:value={editGpp} min="0" step="any" class="manage-settings-input" /></label>{/if}
+						{#if editUnit === 'portion'}
+							<label class="manage-settings-row nutrition-edit-row"><span class="manage-settings-label">{t.nutrition_grams_per_portion}</span><input type="number" inputmode="decimal" bind:value={editGpp} min="0" step="any" placeholder="30" class="manage-settings-input" /></label>
+						{:else if editUnit === 'piece'}
+							<label class="manage-settings-row nutrition-edit-row"><span class="manage-settings-label">{t.nutrition_grams_per_piece}</span><input type="number" inputmode="decimal" bind:value={editGpp} min="0" step="any" class="manage-settings-input" /></label>
+						{/if}
 					</section>
 				</div>
 				{#if currentFavorite.customKcalPer100 != null}
@@ -326,6 +429,83 @@
 {/if}
 
 <style>
+	.nutrition-filter-bar {
+		margin-bottom: 18px;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+	.nutrition-search-box {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+	.nutrition-search-input {
+		width: 100%;
+		padding: 9px 32px 9px 36px;
+		font-size: 13.5px;
+		border-radius: 12px;
+		border: 1px solid var(--bubble-container-border);
+		background: var(--bubble-container-bg);
+		color: var(--color-on-surface);
+		outline: none;
+		transition: border-color 0.15s ease;
+	}
+	.nutrition-search-input:focus {
+		border-color: #DC2626;
+	}
+	.nutrition-search-icon {
+		position: absolute;
+		left: 11px;
+		width: 16px;
+		height: 16px;
+		color: var(--color-on-surface-variant);
+		pointer-events: none;
+	}
+	.nutrition-search-clear {
+		position: absolute;
+		right: 9px;
+		padding: 4px;
+		color: var(--color-on-surface-variant);
+		font-size: 12px;
+		cursor: pointer;
+	}
+	.nutrition-sort-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+	.nutrition-sort-row::-webkit-scrollbar {
+		display: none;
+	}
+	.nutrition-sort-label {
+		font-size: 11px;
+		font-weight: 650;
+		letter-spacing: .08em;
+		text-transform: uppercase;
+		color: var(--color-on-surface-variant);
+		margin-right: 2px;
+		flex-shrink: 0;
+	}
+	.sort-pill {
+		padding: 5px 11px;
+		border-radius: 999px;
+		border: 1px solid var(--bubble-container-border);
+		background: var(--bubble-container-bg);
+		color: var(--color-on-surface-variant);
+		font-size: 12px;
+		font-weight: 600;
+		white-space: nowrap;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+	.sort-pill.active {
+		background: #DC2626;
+		color: #ffffff;
+		border-color: #DC2626;
+	}
 	.nutrition-section-title { margin: 4px 2px 7px; color: var(--color-on-surface-variant); font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
 	.nutrition-empty-copy { margin: 0 2px 28px; color: var(--color-on-surface-variant); font-size: 13px; }
 	.nutrition-list-surface { margin-bottom: 28px; overflow: hidden; border: 1px solid var(--bubble-container-border); border-radius: 16px; background: var(--bubble-container-bg); }

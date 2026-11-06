@@ -10,7 +10,7 @@
 	type CaffeineDrink = { id: string; name: string; defaultMl: number; caffeineMg: number };
 	type Component = {
 		id?: string; productBarcode: string | null; genericFoodId: string | null; customName: string | null;
-		displayName: string; imageUrl: string | null; amount: number; unit: 'g' | 'ml' | 'piece';
+		displayName: string; imageUrl: string | null; amount: number; unit: 'g' | 'ml' | 'piece' | 'portion';
 		gramsPerPiece: number | null; kcalPer100: number | null; proteinPer100: number | null;
 		fatPer100: number | null; carbsPer100: number | null; sugarPer100: number | null;
 		fiberPer100: number | null; saltPer100: number | null; kcal?: number;
@@ -78,7 +78,7 @@
 	}
 
 	function effectiveGrams(component: Component): number {
-		return component.unit === 'piece' ? component.amount * (component.gramsPerPiece ?? 0) : component.amount;
+		return (component.unit === 'piece' || component.unit === 'portion') ? component.amount * (component.gramsPerPiece ?? 0) : component.amount;
 	}
 	function componentValue(component: Component, per100: number | null): number {
 		return ((per100 ?? 0) * effectiveGrams(component)) / 100;
@@ -156,7 +156,10 @@
 				<div class="nutrition-section-heading"><span class="manage-section-title">{t.nutrition_ingredients}</span><strong>{totalKcal} kcal</strong></div>
 				<section class="manage-settings-surface nutrition-food-list">
 					{#each components as component, index (index)}
-						<NutritionFoodRow title={component.displayName} meta={`${component.amount}${component.unit === 'piece' ? ` ${t.nutrition_unit_short_piece}` : component.unit}`} trailing={`${Math.round(componentValue(component, component.kcalPer100))} kcal`} imageUrl={component.imageUrl} onactivate={() => editComponent(index)} onremove={() => removeComponent(index)} removeLabel={t.nutrition_remove} />
+						{@const metaText = component.unit === 'portion'
+							? `${component.amount} ${component.amount === 1 ? t.nutrition_unit_portion : t.nutrition_unit_portions}${component.gramsPerPiece && component.gramsPerPiece > 0 ? ` (${Math.round(component.amount * component.gramsPerPiece)} g)` : ''}`
+							: `${component.amount}${component.unit === 'piece' ? ` ${t.nutrition_unit_short_piece}` : component.unit}`}
+						<NutritionFoodRow title={component.displayName} meta={metaText} trailing={`${Math.round(componentValue(component, component.kcalPer100))} kcal`} imageUrl={component.imageUrl} onactivate={() => editComponent(index)} onremove={() => removeComponent(index)} removeLabel={t.nutrition_remove} />
 					{/each}
 					<button type="button" class="nutrition-add-row" onclick={() => { editingComponentIndex = null; addSheetOpen = true; }}>{t.nutrition_add_ingredient}</button>
 				</section>

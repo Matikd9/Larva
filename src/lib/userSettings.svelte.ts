@@ -115,7 +115,7 @@ let _showFavoriteIndicator = $state<boolean>(cache.showFavoriteIndicator ?? true
 let _showSupplementTracker = $state<boolean>(cache.showSupplementTracker ?? true);
 let _showRecipes = $state<boolean>(cache.showRecipes ?? true);
 let _theme = $state<'system' | 'light' | 'dark'>(cache.theme ?? 'system');
-let _colorScheme = $state<'forest' | 'classic' | 'indigo'>(cache.colorScheme ?? 'forest');
+let _colorScheme = $state<'crimson' | 'forest' | 'classic' | 'indigo'>(cache.colorScheme ?? 'crimson');
 let _supplementSortOrder = $state<'az' | 'za' | 'freq'>(cache.supplementSortOrder ?? 'az');
 let _waterTrackerEnabled = $state<boolean>(cache.waterTrackerEnabled ?? true);
 let _waterGoalMl = $state<number>(cache.waterGoalMl ?? 2000);
@@ -135,6 +135,18 @@ let _moodTrackerEnabled = $state<boolean>(cache.moodTrackerEnabled ?? true);
 let _moodWeeklyReviewEnabled = $state<boolean>(cache.moodWeeklyReviewEnabled ?? true);
 let _dismissedMoodWeeklyReviewWeek = $state<string>(cache.dismissedMoodWeeklyReviewWeek ?? '');
 let _nutritionTrackerEnabled = $state<boolean>(cache.nutritionTrackerEnabled ?? true);
+let _nutritionMealSubdivisionsEnabled = $state<boolean>(cache.nutritionMealSubdivisionsEnabled ?? true);
+let _aiNutritionProvider = $state<'gemini' | 'openai'>(cache.aiNutritionProvider ?? 'gemini');
+let _aiGeminiApiKey = $state<string>(cache.aiGeminiApiKey ?? '');
+const _cachedGeminiModel = cache.aiGeminiModel;
+const _deprecatedGemini = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash-lite'];
+let _aiGeminiModel = $state<string>(
+	_cachedGeminiModel && !_deprecatedGemini.includes(_cachedGeminiModel)
+		? _cachedGeminiModel
+		: 'gemini-flash-lite-latest'
+);
+let _aiOpenaiApiKey = $state<string>(cache.aiOpenaiApiKey ?? '');
+let _aiOpenaiModel = $state<'gpt-4o-mini' | 'gpt-4o'>(cache.aiOpenaiModel ?? 'gpt-4o-mini');
 let _hiddenMoodTags = $state<string[]>(cache.hiddenMoodTags ?? []);
 let _greetingEnabled = $state<boolean>(cache.greetingEnabled ?? true);
 let _wakeLockLists = $state<boolean>(cache.wakeLockLists ?? true);
@@ -191,6 +203,12 @@ function currentSettings(): UserSettings {
 		moodWeeklyReviewEnabled: _moodWeeklyReviewEnabled,
 		dismissedMoodWeeklyReviewWeek: _dismissedMoodWeeklyReviewWeek,
 		nutritionTrackerEnabled: _nutritionTrackerEnabled,
+		nutritionMealSubdivisionsEnabled: _nutritionMealSubdivisionsEnabled,
+		aiNutritionProvider: _aiNutritionProvider,
+		aiGeminiApiKey: _aiGeminiApiKey,
+		aiGeminiModel: _aiGeminiModel,
+		aiOpenaiApiKey: _aiOpenaiApiKey,
+		aiOpenaiModel: _aiOpenaiModel,
 		hiddenMoodTags: _hiddenMoodTags,
 		greetingEnabled: _greetingEnabled,
 		wakeLockLists: _wakeLockLists,
@@ -326,7 +344,7 @@ export const userSettings = {
 	get theme() { return _theme; },
 	set theme(v: 'system' | 'light' | 'dark') { _theme = v; scheduleSave({ theme: v }); },
 	get colorScheme() { return _colorScheme; },
-	set colorScheme(v: 'forest' | 'classic' | 'indigo') { _colorScheme = v; scheduleSave({ colorScheme: v }); },
+	set colorScheme(v: 'crimson' | 'forest' | 'classic' | 'indigo') { _colorScheme = v; scheduleSave({ colorScheme: v }); },
 
 	// Supplement sort order
 	get supplementSortOrder() { return _supplementSortOrder; },
@@ -375,6 +393,18 @@ export const userSettings = {
 	set dismissedMoodWeeklyReviewWeek(v: string) { _dismissedMoodWeeklyReviewWeek = v; scheduleSave({ dismissedMoodWeeklyReviewWeek: v }); },
 	get nutritionTrackerEnabled() { return _nutritionTrackerEnabled; },
 	set nutritionTrackerEnabled(v: boolean) { _nutritionTrackerEnabled = v; scheduleSave({ nutritionTrackerEnabled: v }); },
+	get nutritionMealSubdivisionsEnabled() { return _nutritionMealSubdivisionsEnabled; },
+	set nutritionMealSubdivisionsEnabled(v: boolean) { _nutritionMealSubdivisionsEnabled = v; scheduleSave({ nutritionMealSubdivisionsEnabled: v }); },
+	get aiNutritionProvider() { return _aiNutritionProvider; },
+	set aiNutritionProvider(v: 'gemini' | 'openai') { _aiNutritionProvider = v; scheduleSave({ aiNutritionProvider: v }); },
+	get aiGeminiApiKey() { return _aiGeminiApiKey; },
+	set aiGeminiApiKey(v: string) { _aiGeminiApiKey = v; scheduleSave({ aiGeminiApiKey: v }); },
+	get aiGeminiModel() { return _aiGeminiModel; },
+	set aiGeminiModel(v: string) { _aiGeminiModel = v; scheduleSave({ aiGeminiModel: v }); },
+	get aiOpenaiApiKey() { return _aiOpenaiApiKey; },
+	set aiOpenaiApiKey(v: string) { _aiOpenaiApiKey = v; scheduleSave({ aiOpenaiApiKey: v }); },
+	get aiOpenaiModel() { return _aiOpenaiModel; },
+	set aiOpenaiModel(v: 'gpt-4o-mini' | 'gpt-4o') { _aiOpenaiModel = v; scheduleSave({ aiOpenaiModel: v }); },
 	get hiddenMoodTags() { return _hiddenMoodTags; },
 	set hiddenMoodTags(v: string[]) { _hiddenMoodTags = v; scheduleSave({ hiddenMoodTags: v }); },
 	get greetingEnabled() { return _greetingEnabled; },
@@ -419,7 +449,7 @@ function applySettings(settings: UserSettings) {
 	_showSupplementTracker = settings.showSupplementTracker ?? true;
 	_showRecipes = settings.showRecipes ?? true;
 	_theme = settings.theme ?? 'system';
-	_colorScheme = settings.colorScheme ?? 'forest';
+	_colorScheme = settings.colorScheme ?? 'crimson';
 	_supplementSortOrder = settings.supplementSortOrder ?? 'az';
 	_waterTrackerEnabled = settings.waterTrackerEnabled ?? true;
 	_waterGoalMl = settings.waterGoalMl ?? 2000;
@@ -439,6 +469,15 @@ function applySettings(settings: UserSettings) {
 	_moodWeeklyReviewEnabled = settings.moodWeeklyReviewEnabled ?? true;
 	_dismissedMoodWeeklyReviewWeek = settings.dismissedMoodWeeklyReviewWeek ?? '';
 	_nutritionTrackerEnabled = settings.nutritionTrackerEnabled ?? true;
+	_nutritionMealSubdivisionsEnabled = settings.nutritionMealSubdivisionsEnabled ?? true;
+	_aiNutritionProvider = settings.aiNutritionProvider ?? 'gemini';
+	_aiGeminiApiKey = settings.aiGeminiApiKey ?? '';
+	const sGeminiModel = settings.aiGeminiModel;
+	_aiGeminiModel = sGeminiModel && !['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash-lite'].includes(sGeminiModel)
+		? sGeminiModel
+		: 'gemini-flash-lite-latest';
+	_aiOpenaiApiKey = settings.aiOpenaiApiKey ?? '';
+	_aiOpenaiModel = settings.aiOpenaiModel ?? 'gpt-4o-mini';
 	_hiddenMoodTags = settings.hiddenMoodTags ?? [];
 	_greetingEnabled = settings.greetingEnabled ?? true;
 	_wakeLockLists = settings.wakeLockLists ?? true;

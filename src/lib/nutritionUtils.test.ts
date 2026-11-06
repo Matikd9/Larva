@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	calculateNutritionTargets,
+	effectiveGrams,
 	nextNutritionUseCount,
 	nutritionBasisSuffix,
 	parseOptionalNutritionNumber
@@ -11,6 +12,18 @@ describe('calculateNutritionTargets', () => {
 		expect(calculateNutritionTargets({
 			sex: 'male', age: 30, heightCm: 175, weightKg: 70, activity: 'light'
 		})).toEqual({ bmr: 1649, tdee: 2267, protein: 84, fat: 76, carbs: 312, fiber: 30 });
+	});
+
+	it('calculates fat loss with high protein diet correctly', () => {
+		const res = calculateNutritionTargets({
+			sex: 'male', age: 30, heightCm: 175, weightKg: 70, activity: 'light',
+			goal: 'fat-loss', diet: 'high-protein'
+		});
+		expect(res).not.toBeNull();
+		// tdee: 2267 * 0.8 = 1814
+		expect(res?.tdee).toBe(1814);
+		// protein: 70 * 2.0 = 140
+		expect(res?.protein).toBe(140);
 	});
 
 	it('rejects implausible calculator inputs', () => {
@@ -35,5 +48,11 @@ describe('nutrition helpers', () => {
 	it('uses millilitres only for volume-based entries', () => {
 		expect(nutritionBasisSuffix('ml')).toBe('ml');
 		expect(nutritionBasisSuffix('piece')).toBe('g');
+		expect(nutritionBasisSuffix('portion')).toBe('g');
+	});
+
+	it('calculates effective grams for portions correctly', () => {
+		expect(effectiveGrams(2, 'portion', 7)).toBe(14);
+		expect(effectiveGrams(100, 'g', null)).toBe(100);
 	});
 });

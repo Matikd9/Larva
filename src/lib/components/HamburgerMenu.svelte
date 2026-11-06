@@ -163,7 +163,7 @@
 					<line x1="12" y1="8" x2="12" y2="8"/>
 					<path d="M11 12h1v4h1"/>
 				</svg>
-				<span class="font-medium text-sm" style="color: var(--color-on-surface)">{currentLang() === 'en' ? 'About / Support' : 'Über Groly / Support'}</span>
+				<span class="font-medium text-sm" style="color: var(--color-on-surface)">{currentLang() === 'en' ? 'About / Support' : 'Über Larva / Support'}</span>
 			</button>
 		</div>
 

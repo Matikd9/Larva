@@ -185,6 +185,8 @@ export const barcodeCache = sqliteTable('barcode_cache', {
 	sugarPer100: real('sugar_per_100'),
 	fiberPer100: real('fiber_per_100'),
 	saltPer100: real('salt_per_100'),
+	microsJson: text('micros_json'),
+	ingredientsText: text('ingredients_text'),
 	nutrimentsJson: text('nutriments_json'), // komplettes OFF-Nutriment-Objekt als JSON (für zukünftige Mikronährstoffe)
 	fetchedAt: integer('fetched_at'), // wann zuletzt von OFF aktualisiert
 	lastSeenAt: integer('last_seen_at').notNull()
@@ -294,6 +296,7 @@ export const supplementCatalog = sqliteTable('supplement_catalog', {
 	unit: text('unit').notNull(),
 	brand: text('brand'),
 	info: text('info'),
+	keywords: text('keywords'),
 	packageSize: real('package_size'), // Packungsinhalt, z.B. 120 (Kapseln)
 	createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
 	createdAt: integer('created_at').notNull(),
@@ -464,8 +467,12 @@ export const genericFoods = sqliteTable('generic_foods', {
 	category: text('category').notNull(), // "fruit", "vegetable", "grain", ...
 	nameDe: text('name_de').notNull(),
 	nameEn: text('name_en').notNull(),
+	nameEs: text('name_es'),
 	keywordsDe: text('keywords_de'), // komma-separierte Synonyme
 	keywordsEn: text('keywords_en'),
+	keywordsEs: text('keywords_es'),
+	cookingState: text('cooking_state', { enum: ['raw', 'cooked'] }),
+	counterpartId: text('counterpart_id'),
 	kcalPer100: real('kcal_per_100').notNull(),
 	proteinPer100: real('protein_per_100'),
 	fatPer100: real('fat_per_100'),
@@ -473,6 +480,7 @@ export const genericFoods = sqliteTable('generic_foods', {
 	sugarPer100: real('sugar_per_100'),
 	fiberPer100: real('fiber_per_100'),
 	saltPer100: real('salt_per_100'),
+	microsJson: text('micros_json'),
 	defaultPieceWeight: real('default_piece_weight'), // g pro Stück, falls "piece" sinnvoll
 	defaultUnit: text('default_unit', { enum: ['g', 'ml', 'piece'] }).notNull().default('g'),
 	sortOrder: integer('sort_order').notNull().default(0)
@@ -510,8 +518,8 @@ export const mealComponents = sqliteTable('meal_components', {
 	imageUrl: text('image_url'),
 	// Menge:
 	amount: real('amount').notNull(),
-	unit: text('unit', { enum: ['g', 'ml', 'piece'] }).notNull(),
-	gramsPerPiece: real('grams_per_piece'), // nur wenn unit='piece'
+	unit: text('unit', { enum: ['g', 'ml', 'piece', 'portion'] }).notNull(),
+	gramsPerPiece: real('grams_per_piece'), // nur wenn unit='piece' oder 'portion'
 	// Snapshot per 100g (für späteres Editieren ohne erneutes Lookup):
 	kcalPer100: real('kcal_per_100'),
 	proteinPer100: real('protein_per_100'),
@@ -527,7 +535,8 @@ export const mealComponents = sqliteTable('meal_components', {
 	carbs: real('carbs').notNull().default(0),
 	sugar: real('sugar').notNull().default(0),
 	fiber: real('fiber').notNull().default(0),
-	salt: real('salt').notNull().default(0)
+	salt: real('salt').notNull().default(0),
+	microsJson: text('micros_json')
 }, (t) => [
 	index('meal_components_meal_id_idx').on(t.mealId)
 ]);
@@ -549,9 +558,10 @@ export const nutritionFavorites = sqliteTable('nutrition_favorites', {
 	customSugarPer100: real('custom_sugar_per_100'),
 	customFiberPer100: real('custom_fiber_per_100'),
 	customSaltPer100: real('custom_salt_per_100'),
+	microsJson: text('micros_json'),
 	// Default-Portion:
 	defaultAmount: real('default_amount').notNull().default(100),
-	defaultUnit: text('default_unit', { enum: ['g', 'ml', 'piece'] }).notNull().default('g'),
+	defaultUnit: text('default_unit', { enum: ['g', 'ml', 'piece', 'portion'] }).notNull().default('g'),
 	defaultGramsPerPiece: real('default_grams_per_piece'),
 	useCount: integer('use_count').notNull().default(0),
 	lastUsedAt: integer('last_used_at'),
@@ -588,7 +598,7 @@ export const nutritionMealFavoriteComponents = sqliteTable('nutrition_meal_favor
 	displayName: text('display_name').notNull(),
 	imageUrl: text('image_url'),
 	amount: real('amount').notNull(),
-	unit: text('unit', { enum: ['g', 'ml', 'piece'] }).notNull(),
+	unit: text('unit', { enum: ['g', 'ml', 'piece', 'portion'] }).notNull(),
 	gramsPerPiece: real('grams_per_piece'),
 	kcalPer100: real('kcal_per_100'),
 	proteinPer100: real('protein_per_100'),
@@ -596,7 +606,8 @@ export const nutritionMealFavoriteComponents = sqliteTable('nutrition_meal_favor
 	carbsPer100: real('carbs_per_100'),
 	sugarPer100: real('sugar_per_100'),
 	fiberPer100: real('fiber_per_100'),
-	saltPer100: real('salt_per_100')
+	saltPer100: real('salt_per_100'),
+	microsJson: text('micros_json')
 }, (t) => [
 	index('nutrition_meal_favorite_components_parent_idx').on(t.mealFavoriteId)
 ]);
@@ -616,7 +627,7 @@ export const recipeNutritionComponents = sqliteTable('recipe_nutrition_component
 	displayName: text('display_name').notNull(),
 	imageUrl: text('image_url'),
 	amount: real('amount').notNull().default(0),
-	unit: text('unit', { enum: ['g', 'ml', 'piece'] }).notNull().default('g'),
+	unit: text('unit', { enum: ['g', 'ml', 'piece', 'portion'] }).notNull().default('g'),
 	gramsPerPiece: real('grams_per_piece'),
 	kcalPer100: real('kcal_per_100'),
 	proteinPer100: real('protein_per_100'),
@@ -624,7 +635,8 @@ export const recipeNutritionComponents = sqliteTable('recipe_nutrition_component
 	carbsPer100: real('carbs_per_100'),
 	sugarPer100: real('sugar_per_100'),
 	fiberPer100: real('fiber_per_100'),
-	saltPer100: real('salt_per_100')
+	saltPer100: real('salt_per_100'),
+	microsJson: text('micros_json')
 }, (t) => [
 	index('recipe_nutrition_components_recipe_id_idx').on(t.recipeId)
 ]);
@@ -637,6 +649,7 @@ export const nutritionGoals = sqliteTable('nutrition_goals', {
 	dailyFat: real('daily_fat'),
 	dailyCarbs: real('daily_carbs'),
 	dailyFiber: real('daily_fiber'),
+	customMicrosJson: text('custom_micros_json'),
 	updatedAt: integer('updated_at').notNull()
 });
 

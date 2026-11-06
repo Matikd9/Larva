@@ -23,7 +23,7 @@ export const PATCH: RequestHandler = async (event) => {
 		const updates: Partial<typeof nutritionFavorites.$inferInsert> = {};
 		if (typeof body.displayName === 'string' && body.displayName.trim()) updates.displayName = body.displayName.trim().slice(0, 80);
 		if (typeof body.defaultAmount === 'number' && body.defaultAmount > 0) updates.defaultAmount = body.defaultAmount;
-		if (body.defaultUnit === 'g' || body.defaultUnit === 'ml' || body.defaultUnit === 'piece') updates.defaultUnit = body.defaultUnit;
+		if (body.defaultUnit === 'g' || body.defaultUnit === 'ml' || body.defaultUnit === 'piece' || body.defaultUnit === 'portion') updates.defaultUnit = body.defaultUnit;
 		if ('defaultGramsPerPiece' in body) updates.defaultGramsPerPiece = body.defaultGramsPerPiece ?? null;
 		if (typeof body.useCount === 'number') { updates.useCount = body.useCount; updates.lastUsedAt = Date.now(); }
 		if (Object.keys(updates).length === 0) return Response.json({ ok: true });

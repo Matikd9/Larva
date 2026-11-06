@@ -11,7 +11,7 @@
 		displayName: string;
 		imageUrl: string | null;
 		amount: number;
-		unit: 'g' | 'ml' | 'piece';
+		unit: 'g' | 'ml' | 'piece' | 'portion';
 		gramsPerPiece: number | null;
 		kcalPer100: number | null;
 		proteinPer100: number | null;
@@ -69,7 +69,7 @@
 	});
 
 	function effGrams(c: Comp): number {
-		return c.unit === 'piece' ? c.amount * (c.gramsPerPiece ?? 0) : c.amount;
+		return (c.unit === 'piece' || c.unit === 'portion') ? c.amount * (c.gramsPerPiece ?? 0) : c.amount;
 	}
 	const totalKcal = $derived(
 		Math.round(components.reduce((s, c) => s + ((c.kcalPer100 ?? 0) * effGrams(c)) / 100, 0) * scale)

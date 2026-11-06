@@ -5,12 +5,12 @@ import { searchOff, searchLocalCache, type ProductData } from '#lib/server/nutri
 import { db } from '#lib/db';
 import { genericFoods } from '#lib/db/schema';
 import { sql, or, like } from 'drizzle-orm';
+import { type EssentialMicros, parseMicrosJson } from '#lib/micronutrients';
 
-type GenericResult = {
-	type: 'generic';
+type GenericCounterpart = {
 	id: string;
-	category: string;
 	name: string;
+	cookingState: 'raw' | 'cooked';
 	kcalPer100: number;
 	proteinPer100: number | null;
 	fatPer100: number | null;
@@ -20,6 +20,27 @@ type GenericResult = {
 	saltPer100: number | null;
 	defaultPieceWeight: number | null;
 	defaultUnit: 'g' | 'ml' | 'piece';
+	micros?: EssentialMicros | null;
+};
+
+type GenericResult = {
+	type: 'generic';
+	id: string;
+	category: string;
+	name: string;
+	cookingState?: 'raw' | 'cooked' | null;
+	counterpartId?: string | null;
+	counterpart?: GenericCounterpart | null;
+	kcalPer100: number;
+	proteinPer100: number | null;
+	fatPer100: number | null;
+	carbsPer100: number | null;
+	sugarPer100: number | null;
+	fiberPer100: number | null;
+	saltPer100: number | null;
+	defaultPieceWeight: number | null;
+	defaultUnit: 'g' | 'ml' | 'piece';
+	micros?: EssentialMicros | null;
 };
 
 type ProductResult = {
@@ -30,6 +51,7 @@ type ProductResult = {
 	imageUrl: string | null;
 	nutriscoreGrade: string | null;
 	servingQuantity: number | null;
+	servingSize?: string | null;
 	kcalPer100: number | null;
 	proteinPer100: number | null;
 	fatPer100: number | null;
@@ -37,61 +59,140 @@ type ProductResult = {
 	sugarPer100: number | null;
 	fiberPer100: number | null;
 	saltPer100: number | null;
+	micros?: EssentialMicros | null;
 };
 
-function searchGenerics(query: string, lang: 'de' | 'en'): GenericResult[] {
+function stripAccents(str: string): string {
+	return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function getLocalizedName(
+	r: { nameEs?: string | null; nameDe: string; nameEn: string },
+	lang: 'es' | 'en' | 'de'
+): string {
+	if (lang === 'es' && r.nameEs) return r.nameEs;
+	if (lang === 'de') return r.nameDe;
+	return r.nameEn || r.nameEs || r.nameDe;
+}
+
+function searchGenerics(query: string, lang: 'es' | 'de' | 'en'): GenericResult[] {
 	const q = query.trim().toLowerCase();
 	if (!q) return [];
+	const qNorm = stripAccents(q);
 	const pattern = `%${q}%`;
-	const nameCol = lang === 'de' ? genericFoods.nameDe : genericFoods.nameEn;
-	const altNameCol = lang === 'de' ? genericFoods.nameEn : genericFoods.nameDe;
-	const kwCol = lang === 'de' ? genericFoods.keywordsDe : genericFoods.keywordsEn;
-	const altKwCol = lang === 'de' ? genericFoods.keywordsEn : genericFoods.keywordsDe;
+	const patternNorm = `%${qNorm}%`;
 
-	// Großzügig matchen (limit 60), danach in JS nach Relevanz sortieren und auf 15 kürzen.
-	const rows = db.select().from(genericFoods).where(
-		or(
-			like(sql`lower(${nameCol})`, pattern),
-			like(sql`lower(${altNameCol})`, pattern),
-			like(sql`lower(coalesce(${kwCol}, ''))`, pattern),
-			like(sql`lower(coalesce(${altKwCol}, ''))`, pattern)
-		)
-	).limit(60).all();
-
-	// Relevanz-Score: exakter Name (0) > Name-Prefix (1) > Keyword-Wortanfang (2)
-	// > Name-Substring (3) > Keyword-Substring (4). Kleiner = besser.
-	function score(r: typeof rows[number]): number {
-		const name = (lang === 'de' ? r.nameDe : r.nameEn).toLowerCase();
-		const altName = (lang === 'de' ? r.nameEn : r.nameDe).toLowerCase();
-		const kw = ((lang === 'de' ? r.keywordsDe : r.keywordsEn) ?? '').toLowerCase();
-		const altKw = ((lang === 'de' ? r.keywordsEn : r.keywordsDe) ?? '').toLowerCase();
-		if (name === q || altName === q) return 0;
-		if (name.startsWith(q) || altName.startsWith(q)) return 1;
-		const kwWords = `${kw},${altKw}`.split(/[,\s]+/).filter(Boolean);
-		if (kwWords.some((w) => w.startsWith(q))) return 2;
-		if (name.includes(q) || altName.includes(q)) return 3;
-		return 4;
+	const patterns = qNorm !== q ? [pattern, patternNorm] : [pattern];
+	const conditions = [];
+	for (const p of patterns) {
+		conditions.push(
+			like(sql`lower(coalesce(${genericFoods.nameEs}, ''))`, p),
+			like(sql`lower(${genericFoods.nameEn})`, p),
+			like(sql`lower(${genericFoods.nameDe})`, p),
+			like(sql`lower(coalesce(${genericFoods.keywordsEs}, ''))`, p),
+			like(sql`lower(coalesce(${genericFoods.keywordsEn}, ''))`, p),
+			like(sql`lower(coalesce(${genericFoods.keywordsDe}, ''))`, p)
+		);
 	}
 
-	return rows
+	// Große Auswahl matchen (limit 80)
+	const rows = db
+		.select()
+		.from(genericFoods)
+		.where(or(...conditions))
+		.limit(80)
+		.all();
+
+	function score(r: (typeof rows)[number]): number {
+		const targetName = getLocalizedName(r, lang).toLowerCase();
+		const altName1 = (lang === 'es' ? r.nameEn : r.nameEs ?? '').toLowerCase();
+		const altName2 = (lang === 'de' ? r.nameEn : r.nameDe).toLowerCase();
+
+		const targetNameNorm = stripAccents(targetName);
+		const altName1Norm = stripAccents(altName1);
+		const altName2Norm = stripAccents(altName2);
+
+		const kwTarget = (lang === 'es' ? r.keywordsEs : lang === 'de' ? r.keywordsDe : r.keywordsEn) ?? '';
+		const kwOther = `${r.keywordsEs ?? ''},${r.keywordsEn ?? ''},${r.keywordsDe ?? ''}`;
+		const kwTargetNorm = stripAccents(kwTarget.toLowerCase());
+		const kwOtherNorm = stripAccents(kwOther.toLowerCase());
+
+		if (targetName === q || targetNameNorm === qNorm) return 0;
+		if (altName1 === q || altName1Norm === qNorm || altName2 === q || altName2Norm === qNorm) return 1;
+		if (targetName.startsWith(q) || targetNameNorm.startsWith(qNorm)) return 2;
+		if (altName1.startsWith(q) || altName1Norm.startsWith(qNorm) || altName2.startsWith(q) || altName2Norm.startsWith(qNorm)) return 3;
+
+		const targetKwWords = kwTargetNorm.split(/[,\s]+/).filter(Boolean);
+		if (targetKwWords.some((w) => w.startsWith(qNorm))) return 4;
+
+		if (targetName.includes(q) || targetNameNorm.includes(qNorm)) return 5;
+
+		const otherKwWords = kwOtherNorm.split(/[,\s]+/).filter(Boolean);
+		if (otherKwWords.some((w) => w.startsWith(qNorm))) return 6;
+		if (targetKwWords.some((w) => w.includes(qNorm))) return 7;
+
+		return 8;
+	}
+
+	const topRows = rows
 		.map((r) => ({ r, s: score(r) }))
 		.sort((a, b) => a.s - b.s || a.r.nameDe.length - b.r.nameDe.length)
 		.slice(0, 15)
-		.map(({ r }) => ({
-			type: 'generic' as const,
-			id: r.id,
-			category: r.category,
-			name: lang === 'de' ? r.nameDe : r.nameEn,
-			kcalPer100: r.kcalPer100,
-			proteinPer100: r.proteinPer100,
-			fatPer100: r.fatPer100,
-			carbsPer100: r.carbsPer100,
-			sugarPer100: r.sugarPer100,
-			fiberPer100: r.fiberPer100,
-			saltPer100: r.saltPer100,
-			defaultPieceWeight: r.defaultPieceWeight,
-			defaultUnit: r.defaultUnit as 'g' | 'ml' | 'piece'
-		}));
+		.map(({ r }) => r);
+
+	// Gegenstücke (Cooked / Raw) für schnelle 1-Klick-Umschaltung laden
+	const counterpartIds = topRows
+		.map((r) => r.counterpartId)
+		.filter((id): id is string => Boolean(id));
+
+	const counterpartMap = new Map<string, GenericCounterpart>();
+	if (counterpartIds.length > 0) {
+		const cpRows = db
+			.select()
+			.from(genericFoods)
+			.where(
+				or(...counterpartIds.map((cid) => sql`${genericFoods.id} = ${cid}`))
+			)
+			.all();
+
+		for (const cp of cpRows) {
+			counterpartMap.set(cp.id, {
+				id: cp.id,
+				name: getLocalizedName(cp, lang),
+				cookingState: (cp.cookingState as 'raw' | 'cooked') ?? 'raw',
+				kcalPer100: cp.kcalPer100,
+				proteinPer100: cp.proteinPer100,
+				fatPer100: cp.fatPer100,
+				carbsPer100: cp.carbsPer100,
+				sugarPer100: cp.sugarPer100,
+				fiberPer100: cp.fiberPer100,
+				saltPer100: cp.saltPer100,
+				defaultPieceWeight: cp.defaultPieceWeight,
+				defaultUnit: (cp.defaultUnit as 'g' | 'ml' | 'piece') ?? 'g',
+				micros: parseMicrosJson(cp.microsJson)
+			});
+		}
+	}
+
+	return topRows.map((r) => ({
+		type: 'generic' as const,
+		id: r.id,
+		category: r.category,
+		name: getLocalizedName(r, lang),
+		cookingState: (r.cookingState as 'raw' | 'cooked') ?? null,
+		counterpartId: r.counterpartId ?? null,
+		counterpart: r.counterpartId ? counterpartMap.get(r.counterpartId) ?? null : null,
+		kcalPer100: r.kcalPer100,
+		proteinPer100: r.proteinPer100,
+		fatPer100: r.fatPer100,
+		carbsPer100: r.carbsPer100,
+		sugarPer100: r.sugarPer100,
+		fiberPer100: r.fiberPer100,
+		saltPer100: r.saltPer100,
+		defaultPieceWeight: r.defaultPieceWeight,
+		defaultUnit: (r.defaultUnit as 'g' | 'ml' | 'piece') ?? 'g',
+		micros: parseMicrosJson(r.microsJson)
+	}));
 }
 
 export const GET: RequestHandler = async (event) => {
@@ -99,7 +200,8 @@ export const GET: RequestHandler = async (event) => {
 	if (error) return error;
 
 	const q = event.url.searchParams.get('q')?.trim() ?? '';
-	const lang = (event.url.searchParams.get('lang') === 'en' ? 'en' : 'de') as 'de' | 'en';
+	const rawLang = event.url.searchParams.get('lang')?.toLowerCase() ?? 'es';
+	const lang: 'es' | 'en' | 'de' = rawLang.startsWith('de') ? 'de' : rawLang.startsWith('en') ? 'en' : 'es';
 	// source: 'local' = nur Generics + Cache (schnell), 'off' = nur Online-Produkte (langsam),
 	// fehlt = beides kombiniert (Rückwärtskompatibilität, z.B. Generic-Lookup per id).
 	const source = event.url.searchParams.get('source');
@@ -115,13 +217,15 @@ export const GET: RequestHandler = async (event) => {
 		imageUrl: p.imageUrl,
 		nutriscoreGrade: p.nutriscoreGrade,
 		servingQuantity: p.servingQuantity,
+		servingSize: p.servingSize,
 		kcalPer100: p.kcalPer100,
 		proteinPer100: p.proteinPer100,
 		fatPer100: p.fatPer100,
 		carbsPer100: p.carbsPer100,
 		sugarPer100: p.sugarPer100,
 		fiberPer100: p.fiberPer100,
-		saltPer100: p.saltPer100
+		saltPer100: p.saltPer100,
+		micros: p.micros ?? null
 	});
 
 	// Stufe „off" — nur die langsame Online-Suche.

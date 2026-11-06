@@ -4,13 +4,16 @@ import { authGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
 import { nutritionGoals } from '#lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { type EssentialMicros, parseMicrosJson, stringifyMicrosJson } from '#lib/micronutrients';
 
 export const GET: RequestHandler = async (event) => {
 	const { error, user } = authGuard(event);
 	if (error || !user) return error ?? Response.json({ error: 'Unauthorized' }, { status: 401 });
 
 	const g = db.select().from(nutritionGoals).where(eq(nutritionGoals.userId, user.id)).get();
-	return Response.json({ goals: g ?? null });
+	return Response.json({
+		goals: g ? { ...g, customMicros: parseMicrosJson(g.customMicrosJson) } : null
+	});
 };
 
 export const PUT: RequestHandler = async (event) => {
@@ -19,7 +22,14 @@ export const PUT: RequestHandler = async (event) => {
 
 	try {
 		const body = await event.request.json();
-		const { dailyKcal, dailyProtein, dailyFat, dailyCarbs, dailyFiber } = body;
+		const { dailyKcal, dailyProtein, dailyFat, dailyCarbs, dailyFiber, customMicros } = body as {
+			dailyKcal?: number | null;
+			dailyProtein?: number | null;
+			dailyFat?: number | null;
+			dailyCarbs?: number | null;
+			dailyFiber?: number | null;
+			customMicros?: EssentialMicros | null;
+		};
 
 		const values = {
 			userId: user.id,
@@ -28,6 +38,7 @@ export const PUT: RequestHandler = async (event) => {
 			dailyFat: typeof dailyFat === 'number' && dailyFat >= 0 ? dailyFat : null,
 			dailyCarbs: typeof dailyCarbs === 'number' && dailyCarbs >= 0 ? dailyCarbs : null,
 			dailyFiber: typeof dailyFiber === 'number' && dailyFiber >= 0 ? dailyFiber : null,
+			customMicrosJson: customMicros ? stringifyMicrosJson(customMicros) : null,
 			updatedAt: Date.now()
 		};
 
@@ -40,6 +51,7 @@ export const PUT: RequestHandler = async (event) => {
 					dailyFat: values.dailyFat,
 					dailyCarbs: values.dailyCarbs,
 					dailyFiber: values.dailyFiber,
+					customMicrosJson: values.customMicrosJson,
 					updatedAt: values.updatedAt
 				}
 			})

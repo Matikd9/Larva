@@ -39,7 +39,7 @@
 	// Nutrition-Tracking
 	type NutComp = {
 		productBarcode: string | null; genericFoodId: string | null; customName: string | null;
-		displayName: string; imageUrl: string | null; amount: number; unit: 'g' | 'ml' | 'piece';
+		displayName: string; imageUrl: string | null; amount: number; unit: 'g' | 'ml' | 'piece' | 'portion';
 		gramsPerPiece: number | null; kcalPer100: number | null; proteinPer100: number | null;
 		fatPer100: number | null; carbsPer100: number | null; sugarPer100: number | null;
 		fiberPer100: number | null; saltPer100: number | null; skipped?: boolean;
@@ -57,7 +57,7 @@
 	const nutPerPortionKcal = $derived.by(() => {
 		if (!nutMapped || nutMappedServings <= 0) return 0;
 		const total = usableComponents.reduce((s, c) => {
-			const grams = c.unit === 'piece' ? c.amount * (c.gramsPerPiece ?? 0) : c.amount;
+			const grams = (c.unit === 'piece' || c.unit === 'portion') ? c.amount * (c.gramsPerPiece ?? 0) : c.amount;
 			return s + ((c.kcalPer100 ?? 0) * grams) / 100;
 		}, 0);
 		return Math.round(total / nutMappedServings);

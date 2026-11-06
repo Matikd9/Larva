@@ -13,7 +13,8 @@
 		density = 'compact',
 		maxHeight = '90dvh',
 		bottom = '0px',
-		zIndex = 50
+		zIndex = 50,
+		fullscreen = false
 	}: {
 		accent: string;
 		title: string;
@@ -27,31 +28,104 @@
 		maxHeight?: string;
 		bottom?: string;
 		zIndex?: number;
+		fullscreen?: boolean;
 	} = $props();
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="fixed inset-0 manage-sheet-backdrop" style="z-index: {zIndex - 10}" onclick={onclose}></div>
+{#if !fullscreen}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 manage-sheet-backdrop" style="z-index: {zIndex - 10}" onclick={onclose}></div>
+{/if}
+
 <section
-	class="fixed left-0 right-0 mx-auto flex max-w-[430px] flex-col overflow-hidden rounded-t-3xl manage-sheet-shell"
+	class="fixed flex flex-col overflow-hidden manage-sheet-shell {fullscreen ? 'inset-0 w-full max-w-none h-[100dvh] rounded-none manage-sheet-fullscreen' : 'left-0 right-0 mx-auto max-w-[430px] rounded-t-3xl'}"
 	data-density={density}
-	style="--manage-accent: {accent}; --manage-control-height: {density === 'compact' ? '40px' : '48px'}; --manage-section-padding: {density === 'compact' ? '9px' : '12px'}; --manage-stack-gap: {density === 'compact' ? '8px' : '12px'}; --manage-chip-height: {density === 'compact' ? '32px' : '36px'}; --manage-radius: {density === 'compact' ? '14px' : '18px'}; z-index: {zIndex}; bottom: {bottom}; max-height: {maxHeight}; background-color: var(--modal-bg)"
+	style="--manage-accent: {accent}; --manage-control-height: {density === 'compact' ? '40px' : '48px'}; --manage-section-padding: {density === 'compact' ? '9px' : '12px'}; --manage-stack-gap: {density === 'compact' ? '8px' : '12px'}; --manage-chip-height: {density === 'compact' ? '32px' : '36px'}; --manage-radius: {density === 'compact' ? '14px' : '18px'}; z-index: {zIndex}; {fullscreen ? '' : `bottom: ${bottom}; max-height: ${maxHeight};`} background-color: var(--modal-bg)"
 >
-	<div class="manage-sheet-handle" aria-hidden="true"><span></span></div>
-	<header class="manage-sheet-header">
-		<span class="manage-sheet-dot" aria-hidden="true"></span>
+	{#if !fullscreen}
+		<div class="manage-sheet-handle" aria-hidden="true"><span></span></div>
+	{/if}
+	<header class="manage-sheet-header {fullscreen ? 'manage-sheet-header-fullscreen' : ''}">
+		{#if fullscreen}
+			<button
+				type="button"
+				onclick={onclose}
+				class="manage-sheet-back-btn"
+				aria-label="Atrás"
+			>
+				<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+					<line x1="19" y1="12" x2="5" y2="12"></line>
+					<polyline points="12 19 5 12 12 5"></polyline>
+				</svg>
+			</button>
+		{:else}
+			<span class="manage-sheet-dot" aria-hidden="true"></span>
+		{/if}
 		<div class="min-w-0 flex-1">
 			<h2>{title}</h2>
 			{#if subtitle}<p>{subtitle}</p>{/if}
 		</div>
 		{#if headerActions}<div class="manage-sheet-header-actions">{@render headerActions()}</div>{/if}
 	</header>
-	<div class="manage-sheet-body">{@render body()}</div>
-	{#if footer && showFooter}<footer class="manage-sheet-footer">{@render footer()}</footer>{/if}
+	<div class="manage-sheet-body {fullscreen ? 'manage-sheet-body-fullscreen' : ''}">{@render body()}</div>
+	{#if footer && showFooter}<footer class="manage-sheet-footer {fullscreen ? 'manage-sheet-footer-fullscreen' : ''}">{@render footer()}</footer>{/if}
 </section>
 
 <style>
+	.manage-sheet-fullscreen {
+		padding-top: max(8px, env(safe-area-inset-top));
+		animation: manage-fullscreen-in 180ms cubic-bezier(0.2, 0, 0, 1);
+	}
+
+	@keyframes manage-fullscreen-in {
+		from {
+			opacity: 0;
+			transform: translateY(16px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.manage-sheet-header-fullscreen {
+		min-height: 52px;
+		padding: 4px 16px 8px;
+		gap: 12px;
+		border-bottom: 1px solid var(--bubble-container-border);
+	}
+
+	.manage-sheet-back-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 36px;
+		height: 36px;
+		margin-left: -6px;
+		border-radius: 999px;
+		color: var(--color-on-surface);
+		transition: background-color 140ms ease, transform 100ms ease;
+	}
+	.manage-sheet-back-btn:active {
+		background: var(--color-surface-container);
+		transform: scale(0.92);
+	}
+
+	.manage-sheet-body-fullscreen {
+		padding: 12px 16px;
+		max-width: 640px;
+		width: 100%;
+		margin: 0 auto;
+	}
+
+	.manage-sheet-footer-fullscreen {
+		max-width: 640px;
+		width: 100%;
+		margin: 0 auto;
+		padding: 10px 16px max(14px, env(safe-area-inset-bottom));
+	}
+
 	.manage-sheet-backdrop {
 		background: rgba(0, 0, 0, 0.52);
 		animation: manage-fade 180ms cubic-bezier(0.2, 0, 0, 1);

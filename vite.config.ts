@@ -1,5 +1,5 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import adapter from '@sveltejs/adapter-node';
@@ -61,6 +61,9 @@ const pwaPlugins = pwa.map(plugin => {
 	return plugin;
 });
 const nodeAdapter = adapter({ out: 'build' });
+
+Object.assign(process.env, loadEnv(process.env.NODE_ENV || 'development', process.cwd(), ''));
+process.env.BODY_SIZE_LIMIT = process.env.BODY_SIZE_LIMIT || '15M';
 
 export default defineConfig({
 	server: {

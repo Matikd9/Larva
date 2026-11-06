@@ -28,7 +28,7 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between px-6 py-3 flex-shrink-0">
 		<h2 class="text-lg font-bold" style="color: var(--color-on-surface)">
-			{lang === 'en' ? 'About / Support' : 'Über Groly / Support'}
+			{lang === 'en' ? 'About / Support' : 'Über Larva / Support'}
 		</h2>
 		<button
 			onclick={onClose}
@@ -62,7 +62,7 @@
 					</svg>
 				</div>
 				<div class="flex-1">
-					<div class="text-sm font-semibold" style="color: var(--color-on-surface)">Groly</div>
+					<div class="text-sm font-semibold" style="color: var(--color-on-surface)">Larva</div>
 					<div class="text-xs" style="color: var(--color-on-surface-variant)">
 						{lang === 'en' ? 'Made by' : 'Erstellt von'} <span style="color: var(--color-primary)">@peterthepeter</span>
 					</div>

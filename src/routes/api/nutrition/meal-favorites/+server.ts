@@ -5,6 +5,7 @@ import { db } from '#lib/db';
 import { nutritionMealFavorites, nutritionMealFavoriteComponents } from '#lib/db/schema';
 import { eq, desc, asc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { type EssentialMicros, parseMicrosJson, stringifyMicrosJson } from '#lib/micronutrients';
 
 type InputComponent = {
 	productBarcode?: string | null;
@@ -13,7 +14,7 @@ type InputComponent = {
 	displayName: string;
 	imageUrl?: string | null;
 	amount: number;
-	unit: 'g' | 'ml' | 'piece';
+	unit: 'g' | 'ml' | 'piece' | 'portion';
 	gramsPerPiece?: number | null;
 	kcalPer100?: number | null;
 	proteinPer100?: number | null;
@@ -22,6 +23,7 @@ type InputComponent = {
 	sugarPer100?: number | null;
 	fiberPer100?: number | null;
 	saltPer100?: number | null;
+	micros?: EssentialMicros | null;
 };
 
 export const GET: RequestHandler = async (event) => {
@@ -44,7 +46,13 @@ export const GET: RequestHandler = async (event) => {
 		byFav.set(c.mealFavoriteId, arr);
 	}
 	return Response.json({
-		mealFavorites: favs.map((f) => ({ ...f, components: byFav.get(f.id) ?? [] }))
+		mealFavorites: favs.map((f) => ({
+			...f,
+			components: (byFav.get(f.id) ?? []).map((c) => ({
+				...c,
+				micros: parseMicrosJson(c.microsJson)
+			}))
+		}))
 	});
 };
 
@@ -76,7 +84,7 @@ export const POST: RequestHandler = async (event) => {
 		for (let i = 0; i < comps.length; i++) {
 			const c = comps[i];
 			if (typeof c?.amount !== 'number' || !(c.amount > 0)) continue;
-			if (!['g', 'ml', 'piece'].includes(c.unit)) continue;
+			if (!['g', 'ml', 'piece', 'portion'].includes(c.unit)) continue;
 			if (typeof c.displayName !== 'string' || !c.displayName.trim()) continue;
 			db.insert(nutritionMealFavoriteComponents).values({
 				id: randomUUID(),
@@ -96,7 +104,8 @@ export const POST: RequestHandler = async (event) => {
 				carbsPer100: c.carbsPer100 ?? null,
 				sugarPer100: c.sugarPer100 ?? null,
 				fiberPer100: c.fiberPer100 ?? null,
-				saltPer100: c.saltPer100 ?? null
+				saltPer100: c.saltPer100 ?? null,
+				microsJson: stringifyMicrosJson(c.micros)
 			}).run();
 		}
 

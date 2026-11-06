@@ -6,13 +6,13 @@ import type { UserSettings } from '#lib/userSettingsTypes';
 import { hasExplicitUserLanguage } from '#lib/userSettingsSync';
 import { languageFromBrowserLanguage } from '#lib/language';
 
-let _lang = $state<Locale>('de');
+let _lang = $state<Locale>('en');
 let initializedUserId: string | null | undefined;
 let initializationToken = 0;
 
 if (browser) {
 	onUserSettingsApplied((settings) => {
-		const lang = settings.lang ?? 'de';
+		const lang = settings.lang ?? 'en';
 		setLocale(lang, { reload: false });
 		_lang = lang;
 		document.documentElement.lang = lang;
@@ -52,7 +52,7 @@ export async function initLanguage(
 	userId: string | null,
 	serverSettings: UserSettings = {},
 	settingsRevision = 0,
-	anonymousLang: Locale = 'de'
+	anonymousLang: Locale = 'en'
 ) {
 	if (!browser) return;
 	if (initializedUserId === userId) return;

@@ -2,10 +2,11 @@
 import type { RequestHandler } from './$types';
 import { authGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
-import { meals, mealComponents, caffeineDrinks, caffeineLogs } from '#lib/db/schema';
+import { meals, mealComponents, caffeineDrinks, caffeineLogs, barcodeCache } from '#lib/db/schema';
 import { and, eq, asc, gte, lte } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { effectiveGrams, computeTotals, mealCaffeineLogPrefix } from '#lib/server/nutrition';
+import { type EssentialMicros, parseMicrosJson, stringifyMicrosJson, scaleMicros } from '#lib/micronutrients';
 
 type InputComponent = {
 	productBarcode?: string | null;
@@ -14,7 +15,7 @@ type InputComponent = {
 	displayName: string;
 	imageUrl?: string | null;
 	amount: number;
-	unit: 'g' | 'ml' | 'piece';
+	unit: 'g' | 'ml' | 'piece' | 'portion';
 	gramsPerPiece?: number | null;
 	kcalPer100?: number | null;
 	proteinPer100?: number | null;
@@ -23,6 +24,7 @@ type InputComponent = {
 	sugarPer100?: number | null;
 	fiberPer100?: number | null;
 	saltPer100?: number | null;
+	micros?: EssentialMicros | null;
 };
 
 function isValidDate(d: unknown): d is string {
@@ -75,7 +77,10 @@ export const GET: RequestHandler = async (event) => {
 	return Response.json({
 		meals: rows.map((m) => ({
 			...m,
-			components: byMeal.get(m.id) ?? []
+			components: (byMeal.get(m.id) ?? []).map((c) => ({
+				...c,
+				micros: parseMicrosJson(c.microsJson)
+			}))
 		}))
 	});
 };
@@ -119,7 +124,7 @@ export const POST: RequestHandler = async (event) => {
 		for (let i = 0; i < comps.length; i++) {
 			const c = comps[i];
 			if (typeof c?.amount !== 'number' || !(c.amount > 0)) continue;
-			if (!['g', 'ml', 'piece'].includes(c.unit)) continue;
+			if (!['g', 'ml', 'piece', 'portion'].includes(c.unit)) continue;
 			if (typeof c.displayName !== 'string' || !c.displayName.trim()) continue;
 
 			const grams = effectiveGrams(c.amount, c.unit, c.gramsPerPiece);
@@ -158,8 +163,20 @@ export const POST: RequestHandler = async (event) => {
 				carbs: totals.carbs,
 				sugar: totals.sugar,
 				fiber: totals.fiber,
-				salt: totals.salt
+				salt: totals.salt,
+				microsJson: stringifyMicrosJson(scaleMicros(c.micros, grams / 100))
 			}).run();
+
+			if (c.productBarcode && typeof c.gramsPerPiece === 'number' && c.gramsPerPiece > 0) {
+				db.update(barcodeCache)
+					.set({
+						servingQuantity: c.gramsPerPiece,
+						servingSize: `${c.gramsPerPiece} g`,
+						lastSeenAt: now
+					})
+					.where(eq(barcodeCache.barcode, c.productBarcode))
+					.run();
+			}
 		}
 
 		// Koffein-Spiegel: Für jede verknüpfte Koffein-Getränk-Vorlage zusätzlich einen

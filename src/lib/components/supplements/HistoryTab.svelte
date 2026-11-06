@@ -15,6 +15,16 @@
 	type NutrientStat = { total: number; unit: string; name: string };
 	type SupplementStat = { name: string; unit: string; total: number };
 	type SuppEntry = { id: string; name: string; unit: string; total: number };
+	type RangeMeal = {
+		id: string;
+		date: string;
+		time: string;
+		name: string;
+		totalKcal: number;
+		totalProtein?: number;
+		totalFat?: number;
+		totalCarbs?: number;
+	};
 
 	let {
 		loading,
@@ -30,9 +40,12 @@
 		waterLogs,
 		caffeineLogs,
 		meditationLogs,
-		meals = [] as { id: string; name: string; time: string; components: { kcal: number }[] }[],
-		rangeMeals = [] as { id: string; date: string; time: string; name: string; totalKcal: number }[],
+		meals = [] as { id: string; name: string; time: string; components: { kcal: number; protein?: number; fat?: number; carbs?: number; fiber?: number }[] }[],
+		rangeMeals = [] as RangeMeal[],
 		nutritionGoalKcal = null as number | null,
+		nutritionGoalProtein = null as number | null,
+		nutritionGoalFat = null as number | null,
+		nutritionGoalCarbs = null as number | null,
 		onMoodReload,
 		onEditLog,
 		onEditCaffeineLog,
@@ -51,9 +64,12 @@
 		waterLogs: { id: string; amountMl: number; loggedAt: number }[];
 		caffeineLogs: CaffeineLog[];
 		meditationLogs: MeditationLog[];
-		meals?: { id: string; name: string; time: string; components: { kcal: number }[] }[];
-		rangeMeals?: { id: string; date: string; time: string; name: string; totalKcal: number }[];
+		meals?: { id: string; name: string; time: string; components: { kcal: number; protein?: number; fat?: number; carbs?: number; fiber?: number }[] }[];
+		rangeMeals?: RangeMeal[];
 		nutritionGoalKcal?: number | null;
+		nutritionGoalProtein?: number | null;
+		nutritionGoalFat?: number | null;
+		nutritionGoalCarbs?: number | null;
 		onMoodReload: () => void;
 		onEditLog: (log: Log, sup: SuppEntry) => void;
 		onEditCaffeineLog?: (log: CaffeineLog) => void;
@@ -298,6 +314,118 @@
 		return v.toFixed(digits).replace(/\.0+$/, '');
 	}
 
+	function fmtG(v: number): string {
+		return v < 10 && v % 1 !== 0 ? v.toFixed(1) : Math.round(v).toString();
+	}
+
+	const nutritionDashboard = $derived.by(() => {
+		if (period === 'day' || rangeFrom === 0 || rangeDays.length === 0) return null;
+
+		const dailyData = rangeDays.map((day) => {
+			const dayMeals = rangeMeals.filter((m) => m.date === day);
+			let kcal = 0;
+			let protein = 0;
+			let fat = 0;
+			let carbs = 0;
+			for (const m of dayMeals) {
+				kcal += m.totalKcal ?? 0;
+				protein += m.totalProtein ?? 0;
+				fat += m.totalFat ?? 0;
+				carbs += m.totalCarbs ?? 0;
+			}
+			return { day, kcal, protein, fat, carbs, mealsCount: dayMeals.length };
+		});
+
+		let totalKcal = 0;
+		let totalProtein = 0;
+		let totalFat = 0;
+		let totalCarbs = 0;
+		let activeDays = 0;
+
+		for (const d of dailyData) {
+			if (d.kcal > 0) {
+				activeDays++;
+				totalKcal += d.kcal;
+				totalProtein += d.protein;
+				totalFat += d.fat;
+				totalCarbs += d.carbs;
+			}
+		}
+
+		const divisor = activeDays > 0 ? activeDays : 1;
+		const avgKcal = Math.round(totalKcal / divisor);
+		const avgProtein = Math.round(totalProtein / divisor);
+		const avgFat = Math.round(totalFat / divisor);
+		const avgCarbs = Math.round(totalCarbs / divisor);
+
+		const kcalP = totalProtein * 4;
+		const kcalF = totalFat * 9;
+		const kcalC = totalCarbs * 4;
+		const totalMacroKcal = kcalP + kcalF + kcalC;
+
+		let pctP = 0;
+		let pctF = 0;
+		let pctC = 0;
+		if (totalMacroKcal > 0) {
+			pctP = Math.round((kcalP / totalMacroKcal) * 100);
+			pctF = Math.round((kcalF / totalMacroKcal) * 100);
+			pctC = Math.max(0, 100 - pctP - pctF);
+		}
+
+		const goal = nutritionGoalKcal ?? 0;
+		const deltaKcal = goal > 0 && activeDays > 0 ? avgKcal - goal : null;
+
+		return {
+			dailyData,
+			totalKcal,
+			totalProtein,
+			totalFat,
+			totalCarbs,
+			activeDays,
+			totalDays: rangeDays.length,
+			avgKcal,
+			avgProtein,
+			avgFat,
+			avgCarbs,
+			pctP,
+			pctF,
+			pctC,
+			deltaKcal,
+			goal
+		};
+	});
+
+	const selectedDayNutrition = $derived.by(() => {
+		if (nutritionSelectedIdx === null || !nutritionDashboard) return null;
+		const dayItem = nutritionDashboard.dailyData[nutritionSelectedIdx];
+		if (!dayItem) return null;
+
+		const kcalP = dayItem.protein * 4;
+		const kcalF = dayItem.fat * 9;
+		const kcalC = dayItem.carbs * 4;
+		const totalMacroKcal = kcalP + kcalF + kcalC;
+
+		let pctP = 0;
+		let pctF = 0;
+		let pctC = 0;
+		if (totalMacroKcal > 0) {
+			pctP = Math.round((kcalP / totalMacroKcal) * 100);
+			pctF = Math.round((kcalF / totalMacroKcal) * 100);
+			pctC = Math.max(0, 100 - pctP - pctF);
+		}
+
+		const goal = nutritionGoalKcal ?? 0;
+		const deltaKcal = goal > 0 && dayItem.kcal > 0 ? Math.round(dayItem.kcal) - goal : null;
+
+		return {
+			...dayItem,
+			pctP,
+			pctF,
+			pctC,
+			deltaKcal
+		};
+	});
+
 	// Day-view: hour position 0–100% for a log timestamp
 	function hourPos(ts: number): number {
 		const d = new Date(ts);
@@ -538,32 +666,75 @@
 					{/if}
 					{#if userSettings.nutritionTrackerEnabled && nutritionStats && nutritionStats.activeDays > 0}
 						{@const ns = nutritionStats}
+						{@const nd = nutritionDashboard}
 						{@const goalN = nutritionGoalKcal ?? 0}
 						{@const maxN = Math.max(...ns.daily, goalN, 1)}
 						{@const selIdxN = nutritionSelectedIdx}
 						{@const selDateN = selIdxN !== null ? rangeDays[selIdxN] : null}
+						{@const selData = selectedDayNutrition}
 						{@const selDayMeals = selDateN ? rangeMeals
 							.filter(m => m.date === selDateN)
 							.sort((a, b) => a.time.localeCompare(b.time)) : []}
-						<div>
-							<div class="flex items-center justify-between text-sm mb-1.5">
-								<span class="font-medium" style="color: var(--color-on-surface)">{t.nutrition_label}</span>
-								{#if selDateN}
-									<span class="text-xs tabular-nums" style="color: var(--color-on-surface-variant)">
-										{new Date(selDateN + 'T12:00:00').toLocaleDateString(currentLang() === 'en' ? 'en-US' : 'de-DE', { weekday: 'short', day: 'numeric', month: 'short' })} · {ns.daily[selIdxN!]} kcal
-									</span>
-								{:else}
-									<span class="text-xs tabular-nums" style="color: var(--color-on-surface-variant)">
-										Ø {fmtNumber(ns.avgPerDay)} kcal · {ns.activeDays}/{ns.totalDays}
-									</span>
+						<div class="space-y-2.5 pt-1">
+							<!-- Header & Summary -->
+							<div>
+								<div class="flex items-center justify-between text-sm mb-1">
+									<span class="font-medium" style="color: var(--color-on-surface)">{t.nutrition_label}</span>
+									{#if selDateN && selData}
+										<span class="text-xs tabular-nums" style="color: var(--color-on-surface-variant)">
+											{new Date(selDateN + 'T12:00:00').toLocaleDateString(currentLang() === 'en' ? 'en-US' : 'de-DE', { weekday: 'short', day: 'numeric', month: 'short' })} · {Math.round(selData.kcal)} kcal
+										</span>
+									{:else if nd}
+										<span class="text-xs tabular-nums" style="color: var(--color-on-surface-variant)">
+											Ø {fmtNumber(nd.avgKcal)} kcal · {nd.activeDays}/{nd.totalDays}
+										</span>
+									{/if}
+								</div>
+
+								<!-- Stat Badges / Metrics -->
+								{#if nd}
+									<div class="flex flex-wrap items-center gap-1.5 mb-2">
+										{#if selData}
+											<span class="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full"
+											      style="background: color-mix(in srgb, #FB923C 14%, transparent); color: #FB923C">
+												{Math.round(selData.kcal)} kcal
+											</span>
+											{#if selData.deltaKcal !== null}
+												<span class="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full"
+												      style="background: color-mix(in srgb, {selData.deltaKcal > 0 ? '#EF4444' : '#10B981'} 14%, transparent); color: {selData.deltaKcal > 0 ? '#EF4444' : '#10B981'}">
+													{selData.deltaKcal > 0 ? '+' : ''}{selData.deltaKcal} kcal ({selData.deltaKcal > 0 ? t.nutrition_calorie_surplus : t.nutrition_calorie_deficit})
+												</span>
+											{/if}
+											<span class="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full"
+											      style="background: var(--color-surface-container); color: var(--color-on-surface-variant)">
+												P: {fmtG(selData.protein)}g · G: {fmtG(selData.fat)}g · C: {fmtG(selData.carbs)}g
+											</span>
+										{:else}
+											<span class="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full"
+											      style="background: color-mix(in srgb, #FB923C 14%, transparent); color: #FB923C">
+												Ø {fmtNumber(nd.avgKcal)} kcal
+											</span>
+											{#if nd.deltaKcal !== null}
+												<span class="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full"
+												      style="background: color-mix(in srgb, {nd.deltaKcal > 0 ? '#EF4444' : '#10B981'} 14%, transparent); color: {nd.deltaKcal > 0 ? '#EF4444' : '#10B981'}">
+													{nd.deltaKcal > 0 ? '+' : ''}{nd.deltaKcal} kcal ({nd.deltaKcal > 0 ? t.nutrition_calorie_surplus : t.nutrition_calorie_deficit})
+												</span>
+											{/if}
+											<span class="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full"
+											      style="background: var(--color-surface-container); color: var(--color-on-surface-variant)">
+												Ø P: {fmtG(nd.avgProtein)}g · G: {fmtG(nd.avgFat)}g · C: {fmtG(nd.avgCarbs)}g
+											</span>
+										{/if}
+									</div>
 								{/if}
 							</div>
+
+							<!-- Calorie Bars with Goal Line -->
 							<div class="relative" style="padding-top: 10px">
 								<span class="absolute right-0 text-[9px] tabular-nums leading-none" style="top: 0; color: var(--color-on-surface-variant); opacity: 0.55">
 									{goalN > 0 ? goalN.toLocaleString(currentLang() === 'en' ? 'en-US' : 'de-DE') : ns.max.toLocaleString(currentLang() === 'en' ? 'en-US' : 'de-DE')} kcal
 								</span>
 								{#if goalN > 0}
-									<!-- Goal line as dashed line at goal position -->
 									<div class="absolute left-0 right-0 pointer-events-none"
 									     style="top: calc(10px + (100% - 10px - 26px) + (26px * (1 - {goalN / maxN}))); border-top: 1px dashed #FB923C; opacity: 0.5"></div>
 								{:else}
@@ -572,30 +743,110 @@
 								<div class="flex items-end" style="height: 26px; gap: {period === 'month' ? 2 : 3}px">
 									{#each ns.daily as v, i}
 										{@const pct = v === 0 ? 14 : Math.max(14, (v / maxN) * 100)}
-										{@const isToday = i === todayIdx}
+										{@const isCurToday = i === todayIdx}
 										{@const isSelected = i === selIdxN}
 										{@const isOver = goalN > 0 && v > goalN}
 										<button
 											onclick={() => nutritionSelectedIdx = selIdxN === i ? null : i}
 											aria-label={'Tag ' + (i + 1)}
-											class="flex-1 active:opacity-70"
-											style="background-color: {isOver ? '#EF4444' : '#FB923C'}; opacity: {v === 0 ? 0.18 : (isSelected ? 1 : 0.9)}; height: {pct}%; min-height: 4px; border-radius: 3px; {isSelected ? `outline: 1.5px solid ${isOver ? '#EF4444' : '#FB923C'}; outline-offset: 2px` : (isToday ? 'outline: 1.5px solid #FB923C; outline-offset: 1px' : '')}"
+											class="flex-1 active:opacity-70 transition-transform"
+											style="background-color: {isOver ? '#EF4444' : '#FB923C'}; opacity: {v === 0 ? 0.18 : (isSelected ? 1 : 0.9)}; height: {pct}%; min-height: 4px; border-radius: 3px; {isSelected ? `outline: 1.5px solid ${isOver ? '#EF4444' : '#FB923C'}; outline-offset: 2px` : (isCurToday ? 'outline: 1.5px solid #FB923C; outline-offset: 1px' : '')}"
 										></button>
 									{/each}
 								</div>
+								{#if dayLabels.length > 0}
+									<div class="flex justify-between text-[8px] tabular-nums mt-1" style="color: var(--color-on-surface-variant); opacity: 0.6">
+										{#each dayLabels as lbl, i}
+											<span class="flex-1 text-center" style={i === selIdxN ? 'color: #FB923C; font-weight: 700' : ''}>{lbl}</span>
+										{/each}
+									</div>
+								{/if}
 							</div>
-							{#if selDayMeals.length > 0}
-								<div class="mt-2 space-y-0.5">
-									{#each selDayMeals as m (m.id)}
-										<button onclick={() => goto(`/tracker/nutrition?date=${m.date}`)}
-										        class="w-full flex items-baseline justify-between text-xs active:opacity-60">
-											<span style="color: var(--color-on-surface)">
-												<span class="tabular-nums" style="color: var(--color-on-surface-variant)">{m.time}</span>
-												<span class="ml-2">{m.name}</span>
+
+							<!-- Macro Distribution Breakdown -->
+							{#if nd}
+								{@const activePctP = selData ? selData.pctP : nd.pctP}
+								{@const activePctF = selData ? selData.pctF : nd.pctF}
+								{@const activePctC = selData ? selData.pctC : nd.pctC}
+								{@const activeGramP = selData ? selData.protein : nd.avgProtein}
+								{@const activeGramF = selData ? selData.fat : nd.avgFat}
+								{@const activeGramC = selData ? selData.carbs : nd.avgCarbs}
+								<div class="p-2.5 rounded-xl border border-[var(--bubble-container-border)] bg-[var(--color-surface-container)]/40 space-y-2">
+									<div class="flex items-center justify-between text-xs font-medium">
+										<span style="color: var(--color-on-surface)">{t.nutrition_macro_distribution}</span>
+										<span class="text-[10px] tabular-nums" style="color: var(--color-on-surface-variant)">
+											{selData ? '' : 'Ø / ' + t.nutrition_today}
+										</span>
+									</div>
+									<!-- Segmented bar -->
+									<div class="h-2 rounded-full overflow-hidden flex bg-[var(--bubble-container-border)]">
+										{#if activePctP > 0}
+											<div style="width: {activePctP}%; background-color: #A78BFA" title="Proteína: {activePctP}%"></div>
+										{/if}
+										{#if activePctF > 0}
+											<div style="width: {activePctF}%; background-color: #FB923C" title="Grasa: {activePctF}%"></div>
+										{/if}
+										{#if activePctC > 0}
+											<div style="width: {activePctC}%; background-color: #60A5FA" title="Carbs: {activePctC}%"></div>
+										{/if}
+									</div>
+									<!-- Macro Legend -->
+									<div class="grid grid-cols-3 gap-1 pt-0.5 text-center">
+										<div class="flex flex-col items-center">
+											<span class="text-[10px] font-medium flex items-center gap-1" style="color: #A78BFA">
+												<span class="w-1.5 h-1.5 rounded-full inline-block" style="background: #A78BFA"></span>
+												{t.nutrition_protein}
 											</span>
-											<span class="tabular-nums" style="color: var(--color-on-surface-variant)">{Math.round(m.totalKcal)} kcal</span>
-										</button>
-									{/each}
+											<span class="text-xs font-bold tabular-nums" style="color: var(--color-on-surface)">
+												{activePctP}% <small class="text-[9px] font-normal opacity-70">({fmtG(activeGramP)}g)</small>
+											</span>
+										</div>
+										<div class="flex flex-col items-center">
+											<span class="text-[10px] font-medium flex items-center gap-1" style="color: #FB923C">
+												<span class="w-1.5 h-1.5 rounded-full inline-block" style="background: #FB923C"></span>
+												{t.nutrition_fat}
+											</span>
+											<span class="text-xs font-bold tabular-nums" style="color: var(--color-on-surface)">
+												{activePctF}% <small class="text-[9px] font-normal opacity-70">({fmtG(activeGramF)}g)</small>
+											</span>
+										</div>
+										<div class="flex flex-col items-center">
+											<span class="text-[10px] font-medium flex items-center gap-1" style="color: #60A5FA">
+												<span class="w-1.5 h-1.5 rounded-full inline-block" style="background: #60A5FA"></span>
+												{t.nutrition_carbs}
+											</span>
+											<span class="text-xs font-bold tabular-nums" style="color: var(--color-on-surface)">
+												{activePctC}% <small class="text-[9px] font-normal opacity-70">({fmtG(activeGramC)}g)</small>
+											</span>
+										</div>
+									</div>
+								</div>
+							{/if}
+
+							<!-- Meals on Selected Day -->
+							{#if selDayMeals.length > 0}
+								<div class="mt-2 space-y-1.5 pt-1 border-t border-[var(--bubble-container-border)]">
+									<div class="flex items-center justify-between text-xs font-semibold px-0.5" style="color: var(--color-on-surface)">
+										<span>{t.nutrition_meals_section}</span>
+										{#if selDateN}
+											<button onclick={() => goto(`/tracker/nutrition?date=${selDateN}`)}
+											        class="text-[11px] font-medium underline" style="color: #FB923C">
+												{t.nutrition_view_full_day} →
+											</button>
+										{/if}
+									</div>
+									<div class="space-y-1">
+										{#each selDayMeals as m (m.id)}
+											<button onclick={() => goto(`/tracker/nutrition?date=${m.date}`)}
+											        class="w-full flex items-baseline justify-between text-xs px-2 py-1.5 rounded-lg active:opacity-60 bg-[var(--color-surface-container)]/30 border border-[var(--bubble-container-border)]">
+												<span class="flex items-baseline gap-2 min-w-0" style="color: var(--color-on-surface)">
+													<span class="tabular-nums font-mono text-[11px]" style="color: var(--color-on-surface-variant)">{m.time}</span>
+													<span class="truncate font-medium">{m.name}</span>
+												</span>
+												<span class="tabular-nums font-semibold shrink-0" style="color: #FB923C">{Math.round(m.totalKcal)} kcal</span>
+											</button>
+										{/each}
+									</div>
 								</div>
 							{/if}
 						</div>
@@ -623,9 +874,16 @@
 					<!-- Nutrition -->
 					{#if userSettings.nutritionTrackerEnabled && meals.length > 0 && period === 'day'}
 						{@const totalKcal = meals.reduce((s, m) => s + m.components.reduce((cs, c) => cs + (c.kcal ?? 0), 0), 0)}
+						{@const totalP = meals.reduce((s, m) => s + m.components.reduce((cs, c) => cs + (c.protein ?? 0), 0), 0)}
+						{@const totalF = meals.reduce((s, m) => s + m.components.reduce((cs, c) => cs + (c.fat ?? 0), 0), 0)}
+						{@const totalC = meals.reduce((s, m) => s + m.components.reduce((cs, c) => cs + (c.carbs ?? 0), 0), 0)}
 						{@const goal = nutritionGoalKcal ?? 0}
 						{@const nPct = goal > 0 ? Math.min(100, (totalKcal / goal) * 100) : 0}
 						{@const nOver = goal > 0 && totalKcal > goal}
+						{@const macroKcal = (totalP * 4) + (totalF * 9) + (totalC * 4)}
+						{@const pctP = macroKcal > 0 ? Math.round(((totalP * 4) / macroKcal) * 100) : 0}
+						{@const pctF = macroKcal > 0 ? Math.round(((totalF * 9) / macroKcal) * 100) : 0}
+						{@const pctC = macroKcal > 0 ? Math.max(0, 100 - pctP - pctF) : 0}
 						<div>
 							<div class="flex items-center justify-between text-sm">
 								<div class="flex items-baseline gap-1.5 min-w-0 flex-1">
@@ -664,6 +922,21 @@
 								{/each}
 							</div>
 							{#if nutritionHistoryCardExpanded}
+								<!-- Day Macro Breakdown -->
+								{#if macroKcal > 0}
+									<div class="p-2 rounded-xl border border-[var(--bubble-container-border)] bg-[var(--color-surface-container)]/30 mt-3 space-y-1.5">
+										<div class="h-1.5 rounded-full overflow-hidden flex bg-[var(--bubble-container-border)]">
+											{#if pctP > 0}<div style="width: {pctP}%; background-color: #A78BFA"></div>{/if}
+											{#if pctF > 0}<div style="width: {pctF}%; background-color: #FB923C"></div>{/if}
+											{#if pctC > 0}<div style="width: {pctC}%; background-color: #60A5FA"></div>{/if}
+										</div>
+										<div class="flex justify-between text-[10px] tabular-nums pt-0.5 px-0.5" style="color: var(--color-on-surface-variant)">
+											<span style="color: #A78BFA; font-weight: 600">P: {pctP}% ({fmtG(totalP)}g)</span>
+											<span style="color: #FB923C; font-weight: 600">G: {pctF}% ({fmtG(totalF)}g)</span>
+											<span style="color: #60A5FA; font-weight: 600">C: {pctC}% ({fmtG(totalC)}g)</span>
+										</div>
+									</div>
+								{/if}
 								<div class="space-y-1 mt-2">
 									{#each meals.slice().sort((a, b) => a.time.localeCompare(b.time)) as m (m.id)}
 										{@const mKcal = Math.round(m.components.reduce((s, c) => s + (c.kcal ?? 0), 0))}

@@ -10,6 +10,7 @@ import { cleanupBarcodeCache, cleanupOldData } from './cleanup';
 import { scheduleNextReminderCheck } from './reminders';
 import { GENERIC_FOODS } from './genericFoodsSeed';
 import { prepareUpgradeBackup, markSuccessfulStart } from './upgradeBackup';
+import { bootstrapSupplementCatalog, seedAllEmptyUsersDefaultSupplements } from './supplementSeed';
 
 let initialization: Promise<void> | undefined;
 let status: 'starting' | 'ready' | 'failed' = 'starting';
@@ -48,6 +49,40 @@ function ensureMealFavoriteCaffeineColumn() {
 	if (!cols.some((c) => c.name === 'caffeine_drink_id')) {
 		sqlite.exec(`ALTER TABLE nutrition_meal_favorites ADD COLUMN caffeine_drink_id text`);
 	}
+}
+
+function ensureMicrosColumns() {
+	const tables = [
+		'meal_components',
+		'barcode_cache',
+		'generic_foods',
+		'nutrition_favorites',
+		'nutrition_meal_favorite_components',
+		'recipe_nutrition_components'
+	];
+	for (const tbl of tables) {
+		try {
+			const cols = sqlite.prepare(`PRAGMA table_info(${tbl})`).all() as Array<{ name: string }>;
+			if (!cols.some((c) => c.name === 'micros_json')) {
+				sqlite.exec(`ALTER TABLE ${tbl} ADD COLUMN micros_json text`);
+			}
+		} catch {}
+	}
+	try {
+		const goalCols = sqlite.prepare(`PRAGMA table_info(nutrition_goals)`).all() as Array<{ name: string }>;
+		if (!goalCols.some((c) => c.name === 'custom_micros_json')) {
+			sqlite.exec(`ALTER TABLE nutrition_goals ADD COLUMN custom_micros_json text`);
+		}
+	} catch {}
+}
+
+function ensureBarcodeCacheIngredientsColumn() {
+	try {
+		const cols = sqlite.prepare(`PRAGMA table_info(barcode_cache)`).all() as Array<{ name: string }>;
+		if (!cols.some((c) => c.name === 'ingredients_text')) {
+			sqlite.exec(`ALTER TABLE barcode_cache ADD COLUMN ingredients_text text`);
+		}
+	} catch {}
 }
 
 function bootstrapRecipeNutrition() {
@@ -216,20 +251,35 @@ async function notifyOnNewVersion() {
 
 // Bei jeder Änderung am Seed (GENERIC_FOODS) Version hochzählen, damit beim
 // nächsten Startup die neuen/aktualisierten Einträge upserted werden.
-const GENERIC_FOODS_VERSION = '3';
+const GENERIC_FOODS_VERSION = '5';
 
 function bootstrapGenericFoods() {
 	const meta = db.select().from(appMeta).where(eq(appMeta.key, 'generic_foods_version')).get();
 	if (meta?.value === GENERIC_FOODS_VERSION) return;
 
+	for (const colSql of [
+		'ALTER TABLE generic_foods ADD COLUMN name_es TEXT',
+		'ALTER TABLE generic_foods ADD COLUMN keywords_es TEXT',
+		'ALTER TABLE generic_foods ADD COLUMN cooking_state TEXT',
+		'ALTER TABLE generic_foods ADD COLUMN counterpart_id TEXT'
+	]) {
+		try {
+			sqlite.exec(colSql);
+		} catch {
+			// Column already exists
+		}
+	}
+
 	const insert = sqlite.prepare(`
 		INSERT INTO generic_foods (
-			id, category, name_de, name_en, keywords_de, keywords_en,
+			id, category, name_de, name_en, name_es, keywords_de, keywords_en, keywords_es,
+			cooking_state, counterpart_id,
 			kcal_per_100, protein_per_100, fat_per_100, carbs_per_100,
 			sugar_per_100, fiber_per_100, salt_per_100,
 			default_piece_weight, default_unit, sort_order
 		) VALUES (
-			@id, @category, @name_de, @name_en, @keywords_de, @keywords_en,
+			@id, @category, @name_de, @name_en, @name_es, @keywords_de, @keywords_en, @keywords_es,
+			@cooking_state, @counterpart_id,
 			@kcal, @protein, @fat, @carbs, @sugar, @fiber, @salt,
 			@piece_weight, @default_unit, @sort_order
 		)
@@ -237,8 +287,12 @@ function bootstrapGenericFoods() {
 			category = excluded.category,
 			name_de = excluded.name_de,
 			name_en = excluded.name_en,
+			name_es = excluded.name_es,
 			keywords_de = excluded.keywords_de,
 			keywords_en = excluded.keywords_en,
+			keywords_es = excluded.keywords_es,
+			cooking_state = excluded.cooking_state,
+			counterpart_id = excluded.counterpart_id,
 			kcal_per_100 = excluded.kcal_per_100,
 			protein_per_100 = excluded.protein_per_100,
 			fat_per_100 = excluded.fat_per_100,
@@ -259,8 +313,12 @@ function bootstrapGenericFoods() {
 				category: f.category,
 				name_de: f.nameDe,
 				name_en: f.nameEn,
+				name_es: f.nameEs ?? null,
 				keywords_de: f.keywordsDe ?? null,
 				keywords_en: f.keywordsEn ?? null,
+				keywords_es: f.keywordsEs ?? null,
+				cooking_state: f.cookingState ?? null,
+				counterpart_id: f.counterpartId ?? null,
 				kcal: f.kcalPer100,
 				protein: f.proteinPer100 ?? null,
 				fat: f.fatPer100 ?? null,
@@ -296,12 +354,16 @@ async function initialize() {
 	runMigrations();
 	ensureSupplementLogNoteColumn();
 	ensureMealFavoriteCaffeineColumn();
+	ensureMicrosColumns();
+	ensureBarcodeCacheIngredientsColumn();
 	bootstrapRecipeNutrition();
 	bootstrapAdmin();
 	migrateItemHistory();
 	bootstrapCaffeineTables();
 	bootstrapMoodTables();
 	bootstrapGenericFoods();
+	bootstrapSupplementCatalog();
+	seedAllEmptyUsersDefaultSupplements();
 	await notifyOnNewVersion();
 	cleanupBarcodeCache();
 	cleanupOldData();

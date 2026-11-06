@@ -29,6 +29,10 @@
 	let logTime = $state('');
 	let saving = $state(false);
 	let errorMsg = $state<string | null>(null);
+	let mode = $state<'drinks' | 'custom'>('drinks');
+	let customDrinkName = $state('');
+	let customCaffeineMg = $state<number | null>(null);
+	let customAmountMl = $state(100);
 
 	const scaledCaffeine = $derived(
 		selected && amountMl > 0
@@ -67,6 +71,10 @@
 	function reset() {
 		selected = null;
 		amountMl = 0;
+		customDrinkName = '';
+		customCaffeineMg = null;
+		customAmountMl = 100;
+		mode = 'drinks';
 		logTime = currentTimeString();
 		errorMsg = null;
 		if (preselectedDrink) selectDrink(preselectedDrink);
@@ -88,49 +96,146 @@
 	}
 
 	async function log() {
-		if (!selected || amountMl <= 0 || saving) return;
-		saving = true;
-		errorMsg = null;
-		const [hh, mm] = logTime.split(':').map(Number);
-		const d = new Date((logDate ?? todayKey()) + 'T00:00:00');
-		d.setHours(hh, mm, 0, 0);
-		try {
-			await logCaffeineOffline({
-				drinkName: selected.name,
-				amountMl,
-				caffeineMg: scaledCaffeine,
-				loggedAt: d.getTime(),
-				clientLogId: generateClientId()
-			});
-			reset();
-			onlogged();
-		} catch {
-			errorMsg = t.caffeine_error_offline;
-			setTimeout(() => { errorMsg = null; }, 3000);
-		} finally {
-			saving = false;
+		if (mode === 'drinks') {
+			if (!selected || amountMl <= 0 || saving) return;
+			saving = true;
+			errorMsg = null;
+			const [hh, mm] = logTime.split(':').map(Number);
+			const d = new Date((logDate ?? todayKey()) + 'T00:00:00');
+			d.setHours(hh, mm, 0, 0);
+			try {
+				await logCaffeineOffline({
+					drinkName: selected.name,
+					amountMl,
+					caffeineMg: scaledCaffeine,
+					loggedAt: d.getTime(),
+					clientLogId: generateClientId()
+				});
+				reset();
+				onlogged();
+			} catch {
+				errorMsg = t.caffeine_error_offline;
+				setTimeout(() => { errorMsg = null; }, 3000);
+			} finally {
+				saving = false;
+			}
+		} else {
+			if (!customCaffeineMg || customCaffeineMg <= 0 || saving) return;
+			saving = true;
+			errorMsg = null;
+			const [hh, mm] = logTime.split(':').map(Number);
+			const d = new Date((logDate ?? todayKey()) + 'T00:00:00');
+			d.setHours(hh, mm, 0, 0);
+			try {
+				await logCaffeineOffline({
+					drinkName: customDrinkName.trim() || t.act_caffeine,
+					amountMl: Math.max(1, Math.round(customAmountMl || 100)),
+					caffeineMg: Math.round(customCaffeineMg),
+					loggedAt: d.getTime(),
+					clientLogId: generateClientId()
+				});
+				reset();
+				onlogged();
+			} catch {
+				errorMsg = t.caffeine_error_offline;
+				setTimeout(() => { errorMsg = null; }, 3000);
+			} finally {
+				saving = false;
+			}
 		}
 	}
 </script>
 
 <div class="caffeine-picker">
-	<div class:integrated class="caffeine-fields">
-		<div class="caffeine-drinks">
-			{#each drinks as drink (drink.id)}
-				<button
-					type="button"
-					onclick={() => selectDrink(drink)}
-					class="caffeine-drink"
-					class:selected={selected?.id === drink.id}
-				>
-					<p class="text-[13px] font-semibold leading-tight" style="color: {selected?.id === drink.id ? '#C8956C' : 'var(--color-on-surface)'}">{drink.name}</p>
-					<p class="text-[11px] mt-0.5" style="color: var(--color-on-surface-variant)">{userSettings.caffeineCustomAmounts[drink.id] ?? drink.defaultMl} ml · {drink.caffeineMg} mg</p>
-				</button>
-			{/each}
-		</div>
+	<div class="flex rounded-xl overflow-hidden text-xs font-semibold self-start" style="background-color: var(--bubble-container-bg); border: 1px solid var(--bubble-container-border)">
+		<button
+			type="button"
+			onclick={() => mode = 'drinks'}
+			class="px-3 py-1.5 transition-colors"
+			style="background-color: {mode === 'drinks' ? '#C8956C' : 'transparent'}; color: {mode === 'drinks' ? '#FFFFFF' : 'var(--color-on-surface-variant)'}"
+		>
+			{t.caffeine_visible_drinks ?? 'Getränke'}
+		</button>
+		<button
+			type="button"
+			onclick={() => mode = 'custom'}
+			class="px-3 py-1.5 transition-colors"
+			style="background-color: {mode === 'custom' ? '#C8956C' : 'transparent'}; color: {mode === 'custom' ? '#FFFFFF' : 'var(--color-on-surface-variant)'}"
+		>
+			+ {t.caffeine_custom_entry}
+		</button>
 	</div>
 
-	<div class="caffeine-actions">
+	<div class:integrated class="caffeine-fields">
+		{#if mode === 'drinks'}
+			<div class="caffeine-drinks">
+				{#each drinks as drink (drink.id)}
+					<button
+						type="button"
+						onclick={() => selectDrink(drink)}
+						class="caffeine-drink"
+						class:selected={selected?.id === drink.id}
+					>
+						<p class="text-[13px] font-semibold leading-tight" style="color: {selected?.id === drink.id ? '#C8956C' : 'var(--color-on-surface)'}">{drink.name}</p>
+						<p class="text-[11px] mt-0.5" style="color: var(--color-on-surface-variant)">{userSettings.caffeineCustomAmounts[drink.id] ?? drink.defaultMl} ml · {drink.caffeineMg} mg</p>
+					</button>
+				{/each}
+			</div>
+		{:else}
+			<div class="p-3.5 space-y-3">
+				<div>
+					<!-- svelte-ignore a11y_label_has_associated_control -->
+					<label class="text-[11px] font-medium mb-1 block" style="color: var(--color-on-surface-variant)">{t.caffeine_custom_name}</label>
+					<input
+						type="text"
+						bind:value={customDrinkName}
+						placeholder={t.act_caffeine}
+						class="w-full h-10 px-3 rounded-xl border text-sm"
+						style="background: var(--color-surface); border-color: var(--bubble-container-border); color: var(--color-on-surface);"
+					/>
+				</div>
+				<div class="grid grid-cols-2 gap-2">
+					<div>
+						<!-- svelte-ignore a11y_label_has_associated_control -->
+						<label class="text-[11px] font-medium mb-1 block" style="color: var(--color-on-surface-variant)">{t.caffeine_mg_label}</label>
+						<div class="relative">
+							<input
+								type="number"
+								bind:value={customCaffeineMg}
+								placeholder="80"
+								min="1"
+								max="2000"
+								step="1"
+								class="w-full h-10 pl-3 pr-9 rounded-xl border text-sm font-semibold tabular-nums"
+								style="background: var(--color-surface); border-color: var(--bubble-container-border); color: var(--color-on-surface);"
+							/>
+							<span class="absolute right-3 top-2.5 text-xs font-semibold pointer-events-none" style="color: #C8956C">mg</span>
+						</div>
+					</div>
+					<div>
+						<!-- svelte-ignore a11y_label_has_associated_control -->
+						<label class="text-[11px] font-medium mb-1 block" style="color: var(--color-on-surface-variant)">{t.caffeine_amount_ml}</label>
+						<div class="relative">
+							<input
+								type="number"
+								bind:value={customAmountMl}
+								placeholder="100"
+								min="1"
+								max="2000"
+								step="5"
+								class="w-full h-10 pl-3 pr-8 rounded-xl border text-sm font-semibold tabular-nums"
+								style="background: var(--color-surface); border-color: var(--bubble-container-border); color: var(--color-on-surface);"
+							/>
+							<span class="absolute right-3 top-2.5 text-xs pointer-events-none" style="color: var(--color-on-surface-variant)">ml</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		{/if}
+	</div>
+
+	<div class="caffeine-actions" class:custom-actions={mode === 'custom'}>
+		{#if mode === 'drinks'}
 			<label class:disabled={!selected} class="caffeine-native-control caffeine-amount-picker">
 				<span class="caffeine-native-value">
 					{#if selected}<strong>{amountMl}</strong><small>ml</small>{:else}<strong>—</strong>{/if}
@@ -154,6 +259,21 @@
 				class="caffeine-log-button"
 				class:ready={!!selected && amountMl > 0}
 			>{saving ? '…' : `${t.caffeine_add}${selected ? ` · ${scaledCaffeine} mg` : ''}`}</button>
+		{:else}
+			<label class="caffeine-native-control caffeine-time-picker" style="border-left: 0;">
+				<span class="caffeine-native-value"><strong>{logTime}</strong></span>
+				<input type="time" bind:value={logTime} aria-label={t.supplement_log_time} />
+			</label>
+
+			<button
+				type="button"
+				onclick={log}
+				disabled={saving || !customCaffeineMg || customCaffeineMg <= 0}
+				class="caffeine-log-button"
+				class:ready={!!customCaffeineMg && customCaffeineMg > 0}
+				style="grid-column: span 2;"
+			>{saving ? '…' : `${t.caffeine_add}${customCaffeineMg && customCaffeineMg > 0 ? ` · ${customCaffeineMg} mg` : ''}`}</button>
+		{/if}
 	</div>
 
 	{#if errorMsg}
@@ -224,6 +344,10 @@
 		border: 1px solid var(--bubble-container-border);
 		border-radius: 16px;
 		background: var(--color-surface-container);
+	}
+
+	.caffeine-actions.custom-actions {
+		grid-template-columns: 1fr 2fr;
 	}
 
 	.caffeine-native-control {

@@ -81,7 +81,7 @@
 				<path d="M16 10a4 4 0 0 1-8 0"/>
 			</svg>
 		</div>
-		<h1 class="text-4xl font-bold mb-1" style="color: var(--color-on-surface); font-family: 'Plus Jakarta Sans', sans-serif">Groly</h1>
+		<h1 class="text-4xl font-bold mb-1" style="color: var(--color-on-surface); font-family: 'Plus Jakarta Sans', sans-serif">Larva</h1>
 		<p style="color: var(--color-on-surface-variant)">{t.login_subtitle}</p>
 	</div>
 

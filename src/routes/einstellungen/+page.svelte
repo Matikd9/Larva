@@ -19,7 +19,7 @@
 
 	let { data } = $props();
 
-	let openedGroups = $state({ general: false, visibility: false, display: false, shopping: false, notifications: false, account: false });
+	let openedGroups = $state({ general: false, visibility: false, display: false, shopping: false, notifications: false, account: false, ai: false });
 	snapshot({
 		id: 'settings-groups',
 		capture: () => ({ ...openedGroups }),
@@ -524,12 +524,102 @@
 				<SettingsSelectRow label={t.theme} value={userSettings.theme} options={[{ value: 'system', label: t.theme_system }, { value: 'light', label: t.theme_light }, { value: 'dark', label: t.theme_dark }]} onchange={(value) => userSettings.theme = value as typeof userSettings.theme}>
 					{#snippet icon()}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>{/snippet}
 				</SettingsSelectRow>
-				<SettingsSelectRow label={t.color_scheme} value={userSettings.colorScheme} options={[{ value: 'forest', label: t.color_scheme_forest }, { value: 'classic', label: t.color_scheme_classic }, { value: 'indigo', label: t.color_scheme_indigo }]} onchange={(value) => userSettings.colorScheme = value as typeof userSettings.colorScheme}>
+				<SettingsSelectRow label={t.color_scheme} value={userSettings.colorScheme} options={[{ value: 'crimson', label: t.color_scheme_crimson }, { value: 'forest', label: t.color_scheme_forest }, { value: 'classic', label: t.color_scheme_classic }, { value: 'indigo', label: t.color_scheme_indigo }]} onchange={(value) => userSettings.colorScheme = value as typeof userSettings.colorScheme}>
 					{#snippet icon()}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22a10 10 0 1 1 0-20 5 5 0 0 1 5 5c0 1.5-.5 2.5-1.5 3.5S14 12 14 13.5s.5 2.5 1.5 3.5c1 1 1.5 2 1.5 3.5a2 2 0 0 1-5 1.5z"/></svg>{/snippet}
-					{#snippet preview()}<span class="h-3 w-3 rounded-full" style="background: {userSettings.colorScheme === 'forest' ? '#2E7D32' : userSettings.colorScheme === 'classic' ? '#006c54' : '#535CBA'}"></span>{/snippet}
-					{#snippet optionPreview(value: string)}<span class="h-3 w-3 rounded-full" style="background: {value === 'forest' ? '#2E7D32' : value === 'classic' ? '#006c54' : '#535CBA'}"></span>{/snippet}
+					{#snippet preview()}<span class="h-3 w-3 rounded-full" style="background: {userSettings.colorScheme === 'crimson' ? '#E50914' : userSettings.colorScheme === 'forest' ? '#2E7D32' : userSettings.colorScheme === 'classic' ? '#006c54' : '#535CBA'}"></span>{/snippet}
+					{#snippet optionPreview(value: string)}<span class="h-3 w-3 rounded-full" style="background: {value === 'crimson' ? '#E50914' : value === 'forest' ? '#2E7D32' : value === 'classic' ? '#006c54' : '#535CBA'}"></span>{/snippet}
 				</SettingsSelectRow>
 				<AppIconSettings currentIcon={data.appIcon} />
+				<SettingsToggleRow
+					label={t.settings_nutrition_subdivisions}
+					description={t.settings_nutrition_subdivisions_desc}
+					checked={userSettings.nutritionMealSubdivisionsEnabled}
+					onchange={() => { userSettings.nutritionMealSubdivisionsEnabled = !userSettings.nutritionMealSubdivisionsEnabled; }}
+				>
+					{#snippet icon()}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>{/snippet}
+				</SettingsToggleRow>
+			</div>
+		</SettingsGroup>
+
+		<SettingsGroup id="ai" label={t.settings_group_ai} bind:open={openedGroups.ai}>
+			{#snippet icon()}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>{/snippet}
+			<div class="settings-surface">
+				<SettingsSelectRow
+					label={t.settings_ai_provider}
+					value={userSettings.aiNutritionProvider}
+					options={[
+						{ value: 'gemini', label: 'Google Gemini' },
+						{ value: 'openai', label: 'OpenAI' }
+					]}
+					onchange={(value) => userSettings.aiNutritionProvider = value as 'gemini' | 'openai'}
+				>
+					{#snippet icon()}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m10 15 5-3-5-3v6z"/></svg>{/snippet}
+				</SettingsSelectRow>
+
+				<!-- Gemini Section -->
+				<div class="p-3.5 flex flex-col gap-2.5" style="border-top: 1px solid var(--bubble-container-border)">
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-semibold" style="color: var(--color-on-surface)">{t.settings_ai_gemini_key}</span>
+						{#if userSettings.aiNutritionProvider === 'gemini'}
+							<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background: color-mix(in srgb, #FB923C 15%, transparent); color: #FB923C">Activo</span>
+						{/if}
+					</div>
+					<p class="text-xs" style="color: var(--color-on-surface-variant)">{t.settings_ai_gemini_key_desc}</p>
+					<input
+						type="password"
+						placeholder="AIzaSy..."
+						value={userSettings.aiGeminiApiKey}
+						oninput={(e) => userSettings.aiGeminiApiKey = (e.currentTarget as HTMLInputElement).value}
+						class="w-full px-3 py-2 rounded-xl text-sm border outline-none font-mono"
+						style="background: var(--color-surface-container); border-color: var(--bubble-container-border); color: var(--color-on-surface)"
+					/>
+					<div class="flex items-center justify-between text-xs pt-1">
+						<span style="color: var(--color-on-surface-variant)">{t.settings_ai_gemini_model}</span>
+						<select
+							value={userSettings.aiGeminiModel}
+							onchange={(e) => userSettings.aiGeminiModel = (e.currentTarget as HTMLSelectElement).value}
+							class="text-xs font-semibold px-2 py-1 rounded-lg border outline-none cursor-pointer"
+							style="background: var(--color-surface-container); border-color: var(--bubble-container-border); color: #FB923C"
+						>
+							<option value="gemini-flash-lite-latest">Gemini Flash-Lite (Recomendado - Ultra rápido)</option>
+							<option value="gemini-flash-latest">Gemini Flash (Equilibrado)</option>
+							<option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite</option>
+							<option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+							<option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+						</select>
+					</div>
+				</div>
+
+				<!-- OpenAI Section -->
+				<div class="p-3.5 flex flex-col gap-2.5" style="border-top: 1px solid var(--bubble-container-border)">
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-semibold" style="color: var(--color-on-surface)">{t.settings_ai_openai_key}</span>
+						{#if userSettings.aiNutritionProvider === 'openai'}
+							<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background: color-mix(in srgb, #FB923C 15%, transparent); color: #FB923C">Activo</span>
+						{/if}
+					</div>
+					<p class="text-xs" style="color: var(--color-on-surface-variant)">{t.settings_ai_openai_key_desc}</p>
+					<input
+						type="password"
+						placeholder="sk-..."
+						value={userSettings.aiOpenaiApiKey}
+						oninput={(e) => userSettings.aiOpenaiApiKey = (e.currentTarget as HTMLInputElement).value}
+						class="w-full px-3 py-2 rounded-xl text-sm border outline-none font-mono"
+						style="background: var(--color-surface-container); border-color: var(--bubble-container-border); color: var(--color-on-surface)"
+					/>
+					<div class="flex items-center justify-between text-xs pt-1">
+						<span style="color: var(--color-on-surface-variant)">{t.settings_ai_openai_model}</span>
+						<select
+							value={userSettings.aiOpenaiModel}
+							onchange={(e) => userSettings.aiOpenaiModel = (e.currentTarget as HTMLSelectElement).value as any}
+							class="text-xs font-semibold px-2 py-1 rounded-lg border outline-none cursor-pointer"
+							style="background: var(--color-surface-container); border-color: var(--bubble-container-border); color: #FB923C"
+						>
+							<option value="gpt-4o-mini">GPT-4o-mini (Recomendado)</option>
+							<option value="gpt-4o">GPT-4o</option>
+						</select>
+					</div>
+				</div>
 			</div>
 		</SettingsGroup>
 

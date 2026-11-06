@@ -13,7 +13,7 @@ type InputComponent = {
 	displayName: string;
 	imageUrl?: string | null;
 	amount: number;
-	unit: 'g' | 'ml' | 'piece';
+	unit: 'g' | 'ml' | 'piece' | 'portion';
 	gramsPerPiece?: number | null;
 	kcalPer100?: number | null;
 	proteinPer100?: number | null;
@@ -59,7 +59,7 @@ export const PATCH: RequestHandler = async (event) => {
 			for (let i = 0; i < comps.length; i++) {
 				const c = comps[i];
 				if (typeof c?.amount !== 'number' || !(c.amount > 0)) continue;
-				if (!['g', 'ml', 'piece'].includes(c.unit)) continue;
+				if (!['g', 'ml', 'piece', 'portion'].includes(c.unit)) continue;
 				if (typeof c.displayName !== 'string' || !c.displayName.trim()) continue;
 				db.insert(nutritionMealFavoriteComponents).values({
 					id: randomUUID(),

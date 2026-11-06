@@ -6,7 +6,7 @@
 	}: {
 		items: Array<{
 			label: string;
-			value: number;
+			value: number | null;
 			goal?: number | null;
 			goalType?: 'min' | 'max';
 			color?: string;
@@ -25,14 +25,18 @@
 <div class="nutrition-macro-strip" data-compact={compact} style="--nutrition-accent: {accent}">
 	{#each items as item, index}
 		{@const goal = item.goal && item.goal > 0 ? item.goal : null}
-		{@const ratio = goal ? item.value / goal : 0}
-		{@const over = item.goalType === 'max' && goal && item.value > goal}
+		{@const ratio = goal && item.value != null ? item.value / goal : 0}
+		{@const over = item.goalType === 'max' && goal && item.value != null && item.value > goal}
 		<div class="nutrition-macro-cell" style="--nutrition-macro-color: {item.color ?? palette[index % palette.length]}">
 			<span class="nutrition-macro-label">{item.label}</span>
 			<span class="nutrition-macro-value" data-over={!!over}>
-				{format(item.value)}<small>{goal ? ` / ${format(goal)}` : ''} g</small>
+				{#if item.value == null}
+					<span class="opacity-40 font-normal">—</span>
+				{:else}
+					{format(item.value)}<small>{goal ? ` / ${format(goal)}` : ''} g</small>
+				{/if}
 			</span>
-			{#if goal}
+			{#if goal && item.value != null}
 				<span class="nutrition-macro-track" aria-hidden="true">
 					<span data-over={!!over} style="width: {Math.min(100, ratio * 100)}%"></span>
 				</span>

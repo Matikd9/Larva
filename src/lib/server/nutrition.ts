@@ -2,7 +2,8 @@
 
 import { db, sqlite } from '#lib/db';
 import { barcodeCache } from '#lib/db/schema';
-import { eq, or, like, sql, desc } from 'drizzle-orm';
+import { eq, and, or, like, sql, desc } from 'drizzle-orm';
+import { type EssentialMicros, parseMicrosJson, stringifyMicrosJson } from '#lib/micronutrients';
 
 const USER_AGENT = 'Groly/0.7 (self-hosted grocery list app)';
 
@@ -18,7 +19,8 @@ const OFF_FIELDS = [
 	'image_url',
 	'nutriscore_grade',
 	'nova_group',
-	'nutriments'
+	'nutriments',
+	'countries_tags'
 ].join(',');
 
 const OFF_HOSTS = [
@@ -40,6 +42,7 @@ type OffProduct = {
 	nutriscore_grade?: string;
 	nova_group?: number;
 	nutriments?: Record<string, number | string | undefined>;
+	countries_tags?: string[];
 };
 
 export type ProductData = {
@@ -58,6 +61,8 @@ export type ProductData = {
 	sugarPer100: number | null;
 	fiberPer100: number | null;
 	saltPer100: number | null;
+	micros?: EssentialMicros | null;
+	ingredientsText?: string | null;
 };
 
 function num(v: unknown): number | null {
@@ -65,6 +70,24 @@ function num(v: unknown): number | null {
 	if (typeof v === 'string') {
 		const n = parseFloat(v);
 		return Number.isFinite(n) ? n : null;
+	}
+	return null;
+}
+
+export function parseServingQuantity(servingQuantity: unknown, servingSize: unknown): number | null {
+	const n = num(servingQuantity);
+	if (n != null && n > 0) return n;
+	if (typeof servingSize === 'string' && servingSize.trim()) {
+		const match = servingSize.match(/(\d+(?:[.,]\d+)?)\s*(?:g|ml|gramos?|gr|g\b)/i);
+		if (match) {
+			const parsed = parseFloat(match[1].replace(',', '.'));
+			if (Number.isFinite(parsed) && parsed > 0) return parsed;
+		}
+		const numMatch = servingSize.match(/\b(\d+(?:[.,]\d+)?)\b/);
+		if (numMatch) {
+			const parsed = parseFloat(numMatch[1].replace(',', '.'));
+			if (Number.isFinite(parsed) && parsed > 0) return parsed;
+		}
 	}
 	return null;
 }
@@ -79,6 +102,77 @@ function extractName(product: OffProduct): string | null {
 	return brand && !name.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${name}` : name;
 }
 
+function extractOffMg(n: Record<string, unknown>, key: string): number | null {
+	const raw = n[`${key}_100g`] ?? n[key];
+	if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
+		const unit = String(n[`${key}_unit`] || '').toLowerCase();
+		if (unit === 'mg') return Math.round(raw * 10) / 10;
+		if (unit === 'g') return Math.round(raw * 1000 * 10) / 10;
+		if (unit === 'mcg' || unit === 'µg') return Math.round((raw / 1000) * 10) / 10;
+		return raw < 10 ? Math.round(raw * 1000 * 10) / 10 : Math.round(raw * 10) / 10;
+	}
+	return null;
+}
+
+function extractOffMcg(n: Record<string, unknown>, key: string): number | null {
+	const raw = n[`${key}_100g`] ?? n[key];
+	if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
+		const unit = String(n[`${key}_unit`] || '').toLowerCase();
+		if (unit === 'mcg' || unit === 'µg') return Math.round(raw * 10) / 10;
+		if (unit === 'mg') return Math.round(raw * 1000 * 10) / 10;
+		if (unit === 'g') return Math.round(raw * 1000000 * 10) / 10;
+		return raw < 0.1 ? Math.round(raw * 1000000 * 10) / 10 : Math.round(raw * 10) / 10;
+	}
+	return null;
+}
+
+function extractOffG(n: Record<string, unknown>, key: string): number | null {
+	const raw = n[`${key}_100g`] ?? n[key];
+	if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
+		const unit = String(n[`${key}_unit`] || '').toLowerCase();
+		if (unit === 'mg') return Math.round((raw / 1000) * 100) / 100;
+		return Math.round(raw * 100) / 100;
+	}
+	return null;
+}
+
+export function extractOffMicros(n: Record<string, unknown>): EssentialMicros {
+	const potassiumMg = extractOffMg(n, 'potassium');
+	const calciumMg = extractOffMg(n, 'calcium');
+	const magnesiumMg = extractOffMg(n, 'magnesium');
+	const ironMg = extractOffMg(n, 'iron');
+	const sodiumMg = extractOffMg(n, 'sodium') ?? (num(n['salt_100g']) != null ? Math.round(((num(n['salt_100g'])!) / 2.5) * 1000) : null);
+
+	const vitaminCMg = extractOffMg(n, 'vitamin-c');
+	const vitDMcg = extractOffMcg(n, 'vitamin-d');
+	const vitaminDIu = vitDMcg != null ? Math.round(vitDMcg * 40) : null;
+	const vitaminB12Mcg = extractOffMcg(n, 'vitamin-b12');
+	const vitaminAMcg = extractOffMcg(n, 'vitamin-a');
+	const vitaminB6Mg = extractOffMg(n, 'vitamin-b6');
+
+	const saturatedFat = extractOffG(n, 'saturated-fat');
+	const monounsaturatedFat = extractOffG(n, 'monounsaturated-fat');
+	const polyunsaturatedFat = extractOffG(n, 'polyunsaturated-fat');
+	const transFat = extractOffG(n, 'trans-fat');
+
+	return {
+		potassiumMg,
+		calciumMg,
+		magnesiumMg,
+		ironMg,
+		sodiumMg,
+		vitaminCMg,
+		vitaminDIu,
+		vitaminB12Mcg,
+		vitaminAMcg,
+		vitaminB6Mg,
+		saturatedFat,
+		monounsaturatedFat,
+		polyunsaturatedFat,
+		transFat
+	};
+}
+
 function toProductData(barcode: string, product: OffProduct): ProductData | null {
 	const name = extractName(product);
 	if (!name) return null;
@@ -89,7 +183,7 @@ function toProductData(barcode: string, product: OffProduct): ProductData | null
 		brand: product.brands?.split(',')[0]?.trim() || null,
 		imageUrl: product.image_front_small_url || product.image_url || null,
 		servingSize: product.serving_size ?? null,
-		servingQuantity: num(product.serving_quantity),
+		servingQuantity: parseServingQuantity(product.serving_quantity, product.serving_size),
 		nutriscoreGrade: product.nutriscore_grade ?? null,
 		novaGroup: typeof product.nova_group === 'number' ? product.nova_group : null,
 		kcalPer100: num(n['energy-kcal_100g']),
@@ -98,7 +192,8 @@ function toProductData(barcode: string, product: OffProduct): ProductData | null
 		carbsPer100: num(n['carbohydrates_100g']),
 		sugarPer100: num(n['sugars_100g']),
 		fiberPer100: num(n['fiber_100g']),
-		saltPer100: num(n['salt_100g'])
+		saltPer100: num(n['salt_100g']),
+		micros: extractOffMicros(n)
 	};
 }
 
@@ -155,7 +250,9 @@ export async function lookupProduct(code: string): Promise<ProductData | null> {
 			carbsPer100: cached.carbsPer100,
 			sugarPer100: cached.sugarPer100,
 			fiberPer100: cached.fiberPer100,
-			saltPer100: cached.saltPer100
+			saltPer100: cached.saltPer100,
+			micros: parseMicrosJson(cached.microsJson),
+			ingredientsText: cached.ingredientsText ?? null
 		};
 	}
 
@@ -206,13 +303,13 @@ function persistCache(data: ProductData, raw: OffProduct) {
 			nutriscore_grade, nova_group,
 			kcal_per_100, protein_per_100, fat_per_100, carbs_per_100,
 			sugar_per_100, fiber_per_100, salt_per_100,
-			nutriments_json, fetched_at, last_seen_at
+			micros_json, nutriments_json, fetched_at, last_seen_at
 		) VALUES (
 			@barcode, @name, @brand, @imageUrl, @servingSize, @servingQuantity,
 			@nutriscoreGrade, @novaGroup,
 			@kcalPer100, @proteinPer100, @fatPer100, @carbsPer100,
 			@sugarPer100, @fiberPer100, @saltPer100,
-			@nutrimentsJson, @fetchedAt, @lastSeenAt
+			@microsJson, @nutrimentsJson, @fetchedAt, @lastSeenAt
 		)
 		ON CONFLICT(barcode) DO UPDATE SET
 			name = excluded.name,
@@ -229,6 +326,7 @@ function persistCache(data: ProductData, raw: OffProduct) {
 			sugar_per_100 = excluded.sugar_per_100,
 			fiber_per_100 = excluded.fiber_per_100,
 			salt_per_100 = excluded.salt_per_100,
+			micros_json = excluded.micros_json,
 			nutriments_json = excluded.nutriments_json,
 			fetched_at = excluded.fetched_at,
 			last_seen_at = excluded.last_seen_at
@@ -248,6 +346,7 @@ function persistCache(data: ProductData, raw: OffProduct) {
 		sugarPer100: data.sugarPer100,
 		fiberPer100: data.fiberPer100,
 		saltPer100: data.saltPer100,
+		microsJson: stringifyMicrosJson(data.micros),
 		nutrimentsJson: raw.nutriments ? JSON.stringify(raw.nutriments) : null,
 		fetchedAt: now,
 		lastSeenAt: now
@@ -258,23 +357,40 @@ function persistCache(data: ProductData, raw: OffProduct) {
  * Lokale Produkt-Suche im `barcode_cache` per LIKE auf name + brand.
  * Treffer wurden alle schon mal von OFF abgefragt (von irgendeinem User auf diesem Server).
  */
+function stripAccents(str: string): string {
+	return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 export function searchLocalCache(query: string, limit = 15): ProductData[] {
 	const q = query.trim().toLowerCase();
 	if (!q) return [];
-	const prefix = `${q}%`;
-	const pattern = `%${q}%`;
+	const words = q.split(/\s+/).filter(Boolean);
 	const nameL = sql`lower(${barcodeCache.name})`;
 	const brandL = sql`lower(coalesce(${barcodeCache.brand}, ''))`;
+	const wordConditions = words.map((w) => {
+		const wNorm = stripAccents(w);
+		if (wNorm !== w) {
+			return or(
+				like(nameL, `%${w}%`),
+				like(brandL, `%${w}%`),
+				like(nameL, `%${wNorm}%`),
+				like(brandL, `%${wNorm}%`)
+			);
+		}
+		return or(like(nameL, `%${w}%`), like(brandL, `%${w}%`));
+	});
+	const prefix = `${q}%`;
+	const prefixNorm = `${stripAccents(q)}%`;
 	const rows = db.select().from(barcodeCache)
-		.where(or(like(nameL, pattern), like(brandL, pattern)))
-		// Relevanz vor Aktualität: exakter Name → Name-Prefix → Marken-Prefix → Substring,
-		// erst danach nach zuletzt gesehen.
+		.where(and(...wordConditions))
+		// Relevanz: exakter Name → Name-Prefix → Chilenischer Barcode (780) → Marken-Prefix → Rest
 		.orderBy(
 			sql`CASE
 				WHEN ${nameL} = ${q} THEN 0
-				WHEN ${nameL} LIKE ${prefix} THEN 1
-				WHEN ${brandL} LIKE ${prefix} THEN 2
-				ELSE 3 END`,
+				WHEN ${nameL} LIKE ${prefix} OR ${nameL} LIKE ${prefixNorm} THEN 1
+				WHEN ${barcodeCache.barcode} LIKE '780%' THEN 2
+				WHEN ${brandL} LIKE ${prefix} OR ${brandL} LIKE ${prefixNorm} THEN 3
+				ELSE 4 END`,
 			desc(barcodeCache.lastSeenAt)
 		)
 		.limit(limit)
@@ -307,16 +423,13 @@ export function searchLocalCache(query: string, limit = 15): ProductData[] {
 export async function searchOff(query: string, limit = 15, signal?: AbortSignal): Promise<ProductData[]> {
 	const q = query.trim();
 	if (!q) return [];
-	// search-a-licious (Elasticsearch): ~0,2s statt mehrerer Sekunden beim alten cgi/search.pl,
-	// echtes Relevanz-Ranking + Popularitäts-Sort (unique_scans_n). Das v2/search-Endpoint
-	// ignoriert search_terms komplett und ist daher ungeeignet.
-	// Optionaler Länderfilter via OFF_COUNTRY (leer = weltweit) als Lucene-Filter im q.
+	// search-a-licious (Elasticsearch): echte Relevanz + Text-Score ohne erzwungenen Scan-Count-Sort,
+	// damit exakte Treffer (z.B. "cola cao", "leche descremada") nicht von Coca-Cola überdeckt werden.
 	const country = process.env.OFF_COUNTRY?.trim();
 	const qExpr = country ? `${q} countries_tags:"en:${country.toLowerCase()}"` : q;
 	const params = new URLSearchParams({
 		q: qExpr,
-		sort_by: '-unique_scans_n',
-		page_size: String(Math.min(limit, 20)),
+		page_size: String(Math.min(limit * 2, 30)),
 		fields: OFF_FIELDS
 	});
 	const url = `https://search.openfoodfacts.org/search?${params.toString()}`;
@@ -325,6 +438,31 @@ export async function searchOff(query: string, limit = 15, signal?: AbortSignal)
 		if (!res.ok) return [];
 		const data = await res.json();
 		const hits = Array.isArray(data.hits) ? (data.hits as OffProduct[]) : [];
+		const qLower = q.toLowerCase();
+
+		// Treffer nach Relevanz + Bevorzugung chilenischer Produkte sortieren
+		hits.sort((a, b) => {
+			const aName = (a.product_name || '').toLowerCase();
+			const bName = (b.product_name || '').toLowerCase();
+			const aBrand = (Array.isArray(a.brands) ? a.brands.join(' ') : (a.brands || '')).toLowerCase();
+			const bBrand = (Array.isArray(b.brands) ? b.brands.join(' ') : (b.brands || '')).toLowerCase();
+			const aChile = (a.code && String(a.code).startsWith('780')) ||
+				(Array.isArray(a.countries_tags) && a.countries_tags.some((c: string) => c.includes('chile')));
+			const bChile = (b.code && String(b.code).startsWith('780')) ||
+				(Array.isArray(b.countries_tags) && b.countries_tags.some((c: string) => c.includes('chile')));
+
+			function rank(name: string, brand: string, isChile: boolean | undefined) {
+				let r = 10;
+				if (name === qLower) r = 0;
+				else if (name.startsWith(qLower)) r = 1;
+				else if (`${brand} ${name}`.includes(qLower) || name.includes(qLower)) r = 2;
+				else r = 3;
+				if (isChile) r -= 0.6;
+				return r;
+			}
+			return rank(aName, aBrand, aChile) - rank(bName, bBrand, bChile);
+		});
+
 		const results: ProductData[] = [];
 		for (const h of hits) {
 			if (!h.code) continue;
@@ -339,6 +477,7 @@ export async function searchOff(query: string, limit = 15, signal?: AbortSignal)
 				results.push(d);
 				try { persistCache(d, normalized); } catch { /* cache best-effort */ }
 			}
+			if (results.length >= limit) break;
 		}
 		return results;
 	} catch {
@@ -350,8 +489,8 @@ export async function searchOff(query: string, limit = 15, signal?: AbortSignal)
  * Berechnet die effektive Grammzahl aus amount + unit.
  * piece → benötigt gramsPerPiece, ml → wird wie Gramm behandelt (Wasser-Dichte).
  */
-export function effectiveGrams(amount: number, unit: 'g' | 'ml' | 'piece', gramsPerPiece: number | null | undefined): number {
-	if (unit === 'piece') return amount * (gramsPerPiece ?? 0);
+export function effectiveGrams(amount: number, unit: 'g' | 'ml' | 'piece' | 'portion', gramsPerPiece: number | null | undefined): number {
+	if (unit === 'piece' || unit === 'portion') return amount * (gramsPerPiece ?? 0);
 	return amount; // g und ml behandeln wir näherungsweise gleich
 }
 

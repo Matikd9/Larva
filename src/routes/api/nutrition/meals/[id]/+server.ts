@@ -2,10 +2,11 @@
 import type { RequestHandler } from './$types';
 import { authGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
-import { meals, mealComponents, caffeineLogs } from '#lib/db/schema';
+import { meals, mealComponents, caffeineLogs, barcodeCache } from '#lib/db/schema';
 import { and, eq, like } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { effectiveGrams, computeTotals, mealCaffeineLogPrefix } from '#lib/server/nutrition';
+import { type EssentialMicros, stringifyMicrosJson, scaleMicros } from '#lib/micronutrients';
 
 type InputComponent = {
 	productBarcode?: string | null;
@@ -14,7 +15,7 @@ type InputComponent = {
 	displayName: string;
 	imageUrl?: string | null;
 	amount: number;
-	unit: 'g' | 'ml' | 'piece';
+	unit: 'g' | 'ml' | 'piece' | 'portion';
 	gramsPerPiece?: number | null;
 	kcalPer100?: number | null;
 	proteinPer100?: number | null;
@@ -23,6 +24,7 @@ type InputComponent = {
 	sugarPer100?: number | null;
 	fiberPer100?: number | null;
 	saltPer100?: number | null;
+	micros?: EssentialMicros | null;
 };
 
 function ensureOwn(userId: string, mealId: string) {
@@ -56,7 +58,7 @@ export const PATCH: RequestHandler = async (event) => {
 			for (let i = 0; i < comps.length; i++) {
 				const c = comps[i];
 				if (typeof c?.amount !== 'number' || !(c.amount > 0)) continue;
-				if (!['g', 'ml', 'piece'].includes(c.unit)) continue;
+				if (!['g', 'ml', 'piece', 'portion'].includes(c.unit)) continue;
 				if (typeof c.displayName !== 'string' || !c.displayName.trim()) continue;
 				const grams = effectiveGrams(c.amount, c.unit, c.gramsPerPiece);
 				const totals = computeTotals({
@@ -83,8 +85,20 @@ export const PATCH: RequestHandler = async (event) => {
 					fiberPer100: c.fiberPer100 ?? null,
 					saltPer100: c.saltPer100 ?? null,
 					kcal: totals.kcal, protein: totals.protein, fat: totals.fat, carbs: totals.carbs,
-					sugar: totals.sugar, fiber: totals.fiber, salt: totals.salt
+					sugar: totals.sugar, fiber: totals.fiber, salt: totals.salt,
+					microsJson: stringifyMicrosJson(scaleMicros(c.micros, grams / 100))
 				}).run();
+
+				if (c.productBarcode && typeof c.gramsPerPiece === 'number' && c.gramsPerPiece > 0) {
+					db.update(barcodeCache)
+						.set({
+							servingQuantity: c.gramsPerPiece,
+							servingSize: `${c.gramsPerPiece} g`,
+							lastSeenAt: Date.now()
+						})
+						.where(eq(barcodeCache.barcode, c.productBarcode))
+						.run();
+				}
 			}
 		}
 

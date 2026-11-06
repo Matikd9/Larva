@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { t } from '#lib/i18n.svelte';
-	import { calculateNutritionTargets, type NutritionActivity, type NutritionSex } from '#lib/nutritionUtils';
+	import { calculateNutritionTargets, type NutritionActivity, type NutritionSex, type NutritionGoalType, type NutritionDietType } from '#lib/nutritionUtils';
 	import ManageSheetShell from './ManageSheetShell.svelte';
 
 	let {
@@ -39,6 +39,8 @@
 	let height = $state('175');
 	let weight = $state('70');
 	let activity = $state<NutritionActivity>('light');
+	let goal = $state<NutritionGoalType>('maintain');
+	let diet = $state<NutritionDietType>('balanced');
 
 	// Sheet folgt visualViewport (Tastatur + iOS-Auto-Scroll)
 	let maxHeight = $state(typeof window !== 'undefined' ? window.innerHeight : 800);
@@ -54,6 +56,8 @@
 				if (typeof v.height === 'string') height = v.height;
 				if (typeof v.weight === 'string') weight = v.weight;
 				if (['sedentary', 'light', 'moderate', 'active', 'very-active'].includes(v.activity)) activity = v.activity;
+				if (['fat-loss', 'maintain', 'muscle-gain'].includes(v.goal)) goal = v.goal;
+				if (['high-protein', 'balanced', 'low-carb', 'keto'].includes(v.diet)) diet = v.diet;
 			}
 		} catch {
 			// noop
@@ -82,7 +86,7 @@
 
 	$effect(() => {
 		try {
-			localStorage.setItem('nutrition-calc', JSON.stringify({ sex, age, height, weight, activity }));
+			localStorage.setItem('nutrition-calc', JSON.stringify({ sex, age, height, weight, activity, goal, diet }));
 		} catch {
 			// noop
 		}
@@ -94,7 +98,9 @@
 			age: parseInt(age, 10),
 			heightCm: parseFloat(height),
 			weightKg: parseFloat(weight),
-			activity
+			activity,
+			goal,
+			diet
 		});
 	});
 
@@ -192,6 +198,25 @@
 					<option value="moderate">{t.nutrition_activity_moderate}</option>
 					<option value="active">{t.nutrition_activity_active}</option>
 					<option value="very-active">{t.nutrition_activity_very_active}</option>
+				</select>
+			</label>
+
+			<label class="manage-settings-row nutrition-choice-row">
+				<span class="manage-settings-label">{t.nutrition_goal_objective}</span>
+				<select bind:value={goal} class="nutrition-select nutrition-activity-select">
+					<option value="fat-loss">{t.nutrition_goal_fat_loss}</option>
+					<option value="maintain">{t.nutrition_goal_maintain}</option>
+					<option value="muscle-gain">{t.nutrition_goal_muscle_gain}</option>
+				</select>
+			</label>
+
+			<label class="manage-settings-row nutrition-choice-row">
+				<span class="manage-settings-label">{t.nutrition_diet_type}</span>
+				<select bind:value={diet} class="nutrition-select nutrition-activity-select">
+					<option value="high-protein">{t.nutrition_diet_high_protein}</option>
+					<option value="balanced">{t.nutrition_diet_balanced}</option>
+					<option value="low-carb">{t.nutrition_diet_low_carb}</option>
+					<option value="keto">{t.nutrition_diet_keto}</option>
 				</select>
 			</label>
 

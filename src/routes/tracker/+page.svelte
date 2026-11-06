@@ -72,7 +72,16 @@
 	}
 	let moodEntryOpen = $state(false);
 	type MealSummary = { id: string; name: string; time: string; components: { kcal: number; protein?: number; fat?: number; carbs?: number; fiber?: number }[] };
-	type RangeMeal = { id: string; date: string; time: string; name: string; totalKcal: number };
+	type RangeMeal = {
+		id: string;
+		date: string;
+		time: string;
+		name: string;
+		totalKcal: number;
+		totalProtein: number;
+		totalFat: number;
+		totalCarbs: number;
+	};
 	let todayMeals = $state<MealSummary[]>([]);
 	let historyMeals = $state<MealSummary[]>([]);
 	let historyRangeMeals = $state<RangeMeal[]>([]);
@@ -385,9 +394,15 @@
 				const res = await fetch(`/api/nutrition/meals?date=${historyDate}`);
 				if (res.ok) {
 					const d = await res.json();
-					historyMeals = (d.meals ?? []).map((m: { id: string; name: string; time: string; components: { kcal: number }[] }) => ({
+					historyMeals = (d.meals ?? []).map((m: { id: string; name: string; time: string; components: { kcal: number; protein?: number; fat?: number; carbs?: number; fiber?: number }[] }) => ({
 						id: m.id, name: m.name, time: m.time,
-						components: (m.components ?? []).map((c) => ({ kcal: c.kcal ?? 0 }))
+						components: (m.components ?? []).map((c) => ({
+							kcal: c.kcal ?? 0,
+							protein: c.protein ?? 0,
+							fat: c.fat ?? 0,
+							carbs: c.carbs ?? 0,
+							fiber: c.fiber ?? 0
+						}))
 					}));
 				}
 				historyRangeMeals = [];
@@ -398,12 +413,15 @@
 				const res = await fetch(`/api/nutrition/meals?from=${fromKey}&to=${toKey}`);
 				if (res.ok) {
 					const d = await res.json();
-					historyRangeMeals = (d.meals ?? []).map((m: { id: string; date: string; time: string; name: string; components: { kcal: number }[] }) => ({
+					historyRangeMeals = (d.meals ?? []).map((m: { id: string; date: string; time: string; name: string; components: { kcal: number; protein?: number; fat?: number; carbs?: number }[] }) => ({
 						id: m.id,
 						date: m.date,
 						time: m.time,
 						name: m.name,
-						totalKcal: (m.components ?? []).reduce((s, c) => s + (c.kcal ?? 0), 0)
+						totalKcal: (m.components ?? []).reduce((s, c) => s + (c.kcal ?? 0), 0),
+						totalProtein: (m.components ?? []).reduce((s, c) => s + (c.protein ?? 0), 0),
+						totalFat: (m.components ?? []).reduce((s, c) => s + (c.fat ?? 0), 0),
+						totalCarbs: (m.components ?? []).reduce((s, c) => s + (c.carbs ?? 0), 0)
 					}));
 				}
 				historyMeals = [];
@@ -1461,6 +1479,9 @@
 			meals={historyMeals}
 			rangeMeals={historyRangeMeals}
 			nutritionGoalKcal={nutritionGoalKcal}
+			nutritionGoalProtein={nutritionGoalProtein}
+			nutritionGoalFat={nutritionGoalFat}
+			nutritionGoalCarbs={nutritionGoalCarbs}
 			onMoodReload={loadTodayMoodEntry}
 			onEditLog={openHistoryEditLog}
 			onEditCaffeineLog={openHistoryEditCaffeineLog}

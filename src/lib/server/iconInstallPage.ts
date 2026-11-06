@@ -25,7 +25,7 @@ export function iconInstallPage(icon: AppIcon, lang: 'de' | 'en', android: boole
 	<meta name="mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-title" content="Groly">
-	<title>${t('icon_install_title')} · Groly</title>
+	<title>${t('icon_install_title')} · Larva</title>
 	<link rel="apple-touch-icon" sizes="180x180" href="${assets.touch}">
 	<link rel="icon" type="image/png" href="${assets.touch}">
 	<link rel="manifest" href="${assets.manifest}">

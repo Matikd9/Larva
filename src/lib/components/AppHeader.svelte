@@ -47,7 +47,7 @@
 				</button>
 			{/if}
 			<div class="flex items-center gap-2 min-w-0">
-				<span class="text-xl font-bold shrink-0" style="color: var(--color-primary); font-family: 'Plus Jakarta Sans', sans-serif">Groly</span>
+				<span class="text-xl font-bold shrink-0" style="color: var(--color-primary); font-family: 'Plus Jakarta Sans', sans-serif">Larva</span>
 				{#if !networkStore.online}
 					<div class="flex items-center gap-1 min-w-0">
 						<span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>

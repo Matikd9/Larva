@@ -8,6 +8,7 @@ services:
       - groly-data:/app/data
     environment:
       - NODE_ENV=production
+      - BODY_SIZE_LIMIT=${BODY_SIZE_LIMIT:-15M}
       - DATABASE_URL=/app/data/groly.db
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}

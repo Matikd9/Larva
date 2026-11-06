@@ -11,12 +11,17 @@ export const GET: RequestHandler = async (event) => {
 	if (error) return error;
 
 	const q = event.url.searchParams.get('q')?.trim();
+	const qClean = q ? q.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
 
 	const rows = q
 		? db.select().from(supplementCatalog)
 			.where(or(
 				like(supplementCatalog.name, `%${q}%`),
-				like(supplementCatalog.brand, `%${q}%`)
+				like(supplementCatalog.name, `%${qClean}%`),
+				like(supplementCatalog.brand, `%${q}%`),
+				like(supplementCatalog.info, `%${q}%`),
+				like(supplementCatalog.keywords, `%${q}%`),
+				like(supplementCatalog.keywords, `%${qClean}%`)
 			))
 			.orderBy(asc(supplementCatalog.name))
 			.all()

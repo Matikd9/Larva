@@ -3,7 +3,7 @@
 
 @layer base {
   :root {
-    /* Stitch Groly Design System – Light Mode */
+    /* Stitch Larva Design System – Light Mode */
     --color-bg: #f8f9fa;
     --color-surface: #f8f9fa;
     --color-surface-low: #f1f4f5;
@@ -12,19 +12,19 @@
     --color-surface-card: #ffffff;
     --color-surface-elevated: #ffffff;
 
-    --color-primary: #2E7D32;
+    --color-primary: #991B1B;
     --color-tracker-nutrition: #C2410C;
-    --color-primary-container: #C8E6C9;
-    --color-primary-dim: #1B5E20;
+    --color-primary-container: #FEE2E2;
+    --color-primary-dim: #7F1D1D;
     --color-on-primary: #ffffff;
-    --color-on-primary-container: #1B5E20;
+    --color-on-primary-container: #7F1D1D;
 
-    --color-secondary: #4d626c;
-    --color-secondary-container: #cfe6f2;
-    --color-on-secondary-container: #40555f;
+    --color-secondary: #6B4F55;
+    --color-secondary-container: #FCE7EA;
+    --color-on-secondary-container: #4C3439;
 
-    --color-tertiary: #2e6771;
-    --color-tertiary-container: #b7effb;
+    --color-tertiary: #831843;
+    --color-tertiary-container: #FCE7F3;
 
     --color-on-surface: #2d3335;
     --color-on-surface-variant: #5a6062;
@@ -51,32 +51,32 @@
   }
 
   :root[data-theme="dark"], .dark {
-    /* Dark Mode – mint-tinted surfaces (Default theme) */
-    --color-bg: #111513;
-    --color-surface: #141816;
-    --color-surface-low: #181c1a;
-    --color-surface-container: #1c201e;
-    --color-surface-high: #202422;
-    --color-surface-card: #242826;
-    --color-surface-elevated: #282c2a;
+    /* Dark Mode – wine/charcoal tinted surfaces (Larva default) */
+    --color-bg: #150F10;
+    --color-surface: #191214;
+    --color-surface-low: #1E1618;
+    --color-surface-container: #231B1E;
+    --color-surface-high: #292023;
+    --color-surface-card: #2F2529;
+    --color-surface-elevated: #352B30;
 
-    --color-primary: #81C784;
+    --color-primary: #F87171;
     --color-tracker-nutrition: #FB923C;
-    --color-primary-container: #1B3920;
-    --color-primary-dim: #66BB6A;
-    --color-on-primary: #0F2010;
-    --color-on-primary-container: #C8E6C9;
+    --color-primary-container: #450A0A;
+    --color-primary-dim: #EF4444;
+    --color-on-primary: #450A0A;
+    --color-on-primary-container: #FECACA;
 
-    --color-secondary: #07DFC5;
-    --color-secondary-container: #003d38;
-    --color-on-secondary-container: #07DFC5;
+    --color-secondary: #FB7185;
+    --color-secondary-container: #4C0519;
+    --color-on-secondary-container: #FDA4AF;
 
-    --color-tertiary: #00D2FF;
-    --color-tertiary-container: #003a47;
+    --color-tertiary: #F43F5E;
+    --color-tertiary-container: #3B0715;
 
-    --color-on-surface: #e8e8e8;
-    --color-on-surface-variant: #9a9a9a;
-    --color-outline: #555555;
+    --color-on-surface: #F3E8EA;
+    --color-on-surface-variant: #A39296;
+    --color-outline: #6E5A5E;
     --color-outline-variant: rgba(255, 255, 255, 0.08);
 
     --color-error: #ff6b6b;
@@ -91,31 +91,31 @@
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --color-bg: #111513;
-      --color-surface: #141816;
-      --color-surface-low: #181c1a;
-      --color-surface-container: #1c201e;
-      --color-surface-high: #202422;
-      --color-surface-card: #242826;
-      --color-surface-elevated: #282c2a;
+      --color-bg: #150F10;
+      --color-surface: #191214;
+      --color-surface-low: #1E1618;
+      --color-surface-container: #231B1E;
+      --color-surface-high: #292023;
+      --color-surface-card: #2F2529;
+      --color-surface-elevated: #352B30;
 
-      --color-primary: #81C784;
+      --color-primary: #F87171;
       --color-tracker-nutrition: #FB923C;
-      --color-primary-container: #1B3920;
-      --color-primary-dim: #66BB6A;
-      --color-on-primary: #0F2010;
-      --color-on-primary-container: #C8E6C9;
+      --color-primary-container: #450A0A;
+      --color-primary-dim: #EF4444;
+      --color-on-primary: #450A0A;
+      --color-on-primary-container: #FECACA;
 
-      --color-secondary: #07DFC5;
-      --color-secondary-container: #003d38;
-      --color-on-secondary-container: #07DFC5;
+      --color-secondary: #FB7185;
+      --color-secondary-container: #4C0519;
+      --color-on-secondary-container: #FDA4AF;
 
-      --color-tertiary: #00D2FF;
-      --color-tertiary-container: #003a47;
+      --color-tertiary: #F43F5E;
+      --color-tertiary-container: #3B0715;
 
-      --color-on-surface: #e8e8e8;
-      --color-on-surface-variant: #9a9a9a;
-      --color-outline: #555555;
+      --color-on-surface: #F3E8EA;
+      --color-on-surface-variant: #A39296;
+      --color-outline: #6E5A5E;
       --color-outline-variant: rgba(255, 255, 255, 0.08);
 
       --color-error: #ff6b6b;
@@ -130,6 +130,102 @@
   }
 
   /* ===== Alternative color schemes ===== */
+
+  /* Crimson (Larva) */
+  :root[data-color-scheme="crimson"] {
+    --color-primary: #E50914;
+    --color-primary-container: #FEE2E2;
+    --color-primary-dim: #DC2626;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #7F1D1D;
+  }
+  :root[data-theme="dark"][data-color-scheme="crimson"],
+  .dark[data-color-scheme="crimson"] {
+    --color-bg: #150F10;
+    --color-surface: #191214;
+    --color-surface-low: #1E1618;
+    --color-surface-container: #231B1E;
+    --color-surface-high: #292023;
+    --color-surface-card: #2F2529;
+    --color-surface-elevated: #352B30;
+    --color-primary: #EF233C;
+    --color-primary-container: #450A0A;
+    --color-primary-dim: #DC2626;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #FECACA;
+    --color-secondary: #FF3366;
+    --color-secondary-container: #4C0519;
+    --color-on-secondary-container: #FDA4AF;
+    --color-on-surface: #F3E8EA;
+    --color-on-surface-variant: #A39296;
+    --color-outline: #6E5A5E;
+  }
+
+  /* Forest (Classic Green) */
+  :root[data-color-scheme="forest"] {
+    --color-bg: #f8f9fa;
+    --color-surface: #f8f9fa;
+    --color-surface-low: #f1f4f5;
+    --color-surface-container: #ebeef0;
+    --color-surface-high: #e5e9eb;
+    --color-surface-card: #ffffff;
+    --color-surface-elevated: #ffffff;
+    --color-primary: #2E7D32;
+    --color-primary-container: #C8E6C9;
+    --color-primary-dim: #1B5E20;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #1B5E20;
+    --color-on-surface: #2d3335;
+    --color-on-surface-variant: #5a6062;
+    --color-outline: #767c7e;
+  }
+  :root[data-theme="dark"][data-color-scheme="forest"],
+  .dark[data-color-scheme="forest"] {
+    --color-bg: #111513;
+    --color-surface: #141816;
+    --color-surface-low: #181c1a;
+    --color-surface-container: #1c201e;
+    --color-surface-high: #202422;
+    --color-surface-card: #242826;
+    --color-surface-elevated: #282c2a;
+    --color-primary: #81C784;
+    --color-primary-container: #1B3920;
+    --color-primary-dim: #66BB6A;
+    --color-on-primary: #0F2010;
+    --color-on-primary-container: #C8E6C9;
+    --color-secondary: #07DFC5;
+    --color-secondary-container: #003d38;
+    --color-on-secondary-container: #07DFC5;
+    --color-tertiary: #00D2FF;
+    --color-tertiary-container: #003a47;
+    --color-on-surface: #e8e8e8;
+    --color-on-surface-variant: #9a9a9a;
+    --color-outline: #555555;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"])[data-color-scheme="forest"] {
+      --color-bg: #111513;
+      --color-surface: #141816;
+      --color-surface-low: #181c1a;
+      --color-surface-container: #1c201e;
+      --color-surface-high: #202422;
+      --color-surface-card: #242826;
+      --color-surface-elevated: #282c2a;
+      --color-primary: #81C784;
+      --color-primary-container: #1B3920;
+      --color-primary-dim: #66BB6A;
+      --color-on-primary: #0F2010;
+      --color-on-primary-container: #C8E6C9;
+      --color-secondary: #07DFC5;
+      --color-secondary-container: #003d38;
+      --color-on-secondary-container: #07DFC5;
+      --color-tertiary: #00D2FF;
+      --color-tertiary-container: #003a47;
+      --color-on-surface: #e8e8e8;
+      --color-on-surface-variant: #9a9a9a;
+      --color-outline: #555555;
+    }
+  }
 
   /* Classic (Teal — original Groly green) */
   :root[data-color-scheme="classic"] {

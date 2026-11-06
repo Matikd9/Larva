@@ -25,7 +25,7 @@ describe('public icon installation', () => {
 		expect(response.status).toBe(200);
 		expect(response.headers.get('Cache-Control')).toBe('no-store');
 		expect(response.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'");
-		expect(await response.text()).toContain('Add Groly to your home screen');
+		expect(await response.text()).toContain('Add Larva to your home screen');
 	});
 
 	it.each(['/install/dark/private', '/install/unknown', '/einstellungen', '/listen/private'])('does not exempt %s from authentication', async path => {

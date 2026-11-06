@@ -59,9 +59,9 @@
 		else document.documentElement.removeAttribute('data-theme');
 	}
 
-	function applyColorScheme(scheme: 'forest' | 'classic' | 'indigo') {
-		if (scheme === 'classic' || scheme === 'indigo') document.documentElement.setAttribute('data-color-scheme', scheme);
-		else document.documentElement.removeAttribute('data-color-scheme');
+	function applyColorScheme(scheme: 'crimson' | 'forest' | 'classic' | 'indigo') {
+		if (scheme === 'classic' || scheme === 'indigo' || scheme === 'forest') document.documentElement.setAttribute('data-color-scheme', scheme);
+		else document.documentElement.setAttribute('data-color-scheme', 'crimson');
 	}
 
 	$effect(() => { applyTheme(userSettings.theme); });
@@ -154,7 +154,7 @@
 </script>
 
 <svelte:head>
-	<title>Groly</title>
+	<title>Larva</title>
 </svelte:head>
 
 

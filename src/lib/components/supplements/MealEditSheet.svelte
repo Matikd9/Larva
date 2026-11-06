@@ -1,10 +1,13 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import AddComponentSheet from './AddComponentSheet.svelte';
+	import AiFoodEstimatorSheet from './AiFoodEstimatorSheet.svelte';
 	import ManageSheetShell from './ManageSheetShell.svelte';
 	import NutritionFoodRow from './NutritionFoodRow.svelte';
 	import NutritionMacroStrip from './NutritionMacroStrip.svelte';
 	import { t } from '#lib/i18n.svelte';
+	import { type EssentialMicros } from '#lib/micronutrients';
 
 	type Component = {
 		id?: string;
@@ -14,7 +17,7 @@
 		displayName: string;
 		imageUrl: string | null;
 		amount: number;
-		unit: 'g' | 'ml' | 'piece';
+		unit: 'g' | 'ml' | 'piece' | 'portion';
 		gramsPerPiece: number | null;
 		kcalPer100: number | null;
 		proteinPer100: number | null;
@@ -24,6 +27,7 @@
 		fiberPer100: number | null;
 		saltPer100: number | null;
 		kcal?: number;
+		micros?: EssentialMicros | null;
 	};
 
 	type Meal = {
@@ -85,6 +89,7 @@
 	let draftRestored = $state(!!draft);
 	let saving = $state(false);
 	let addSheetOpen = $state(false);
+	let aiSheetOpen = $state(false);
 	let editingComponentIndex = $state<number | null>(null);
 	let saveFavOpen = $state(false);
 	let favName = $state('');
@@ -125,7 +130,7 @@
 	const MEAL_NAMES = $derived([t.meal_name_breakfast, t.meal_name_lunch, t.meal_name_vesper, t.meal_name_dinner, t.meal_name_snack]);
 
 	function effectiveGrams(c: Component): number {
-		if (c.unit === 'piece') return c.amount * (c.gramsPerPiece ?? 0);
+		if (c.unit === 'piece' || c.unit === 'portion') return c.amount * (c.gramsPerPiece ?? 0);
 		return c.amount;
 	}
 
@@ -192,6 +197,68 @@
 		addSheetOpen = false;
 	}
 
+	function addComponentsBatch(newComps: Component[]) {
+		components = [...components, ...newComps];
+		addSheetOpen = false;
+	}
+
+	let addComponentRef = $state<AddComponentSheet | null>(null);
+
+	onMount(() => {
+		if (typeof history !== 'undefined') {
+			try {
+				history.pushState({ modal: 'meal-edit' }, '');
+			} catch {
+				// ignore
+			}
+		}
+		const handlePopState = () => {
+			if (addSheetOpen) {
+				if (addComponentRef && addComponentRef.handleBack()) {
+					try {
+						history.pushState({ modal: 'meal-edit' }, '');
+					} catch { /* noop */ }
+					return;
+				}
+				addSheetOpen = false;
+				editingComponentIndex = null;
+				try {
+					history.pushState({ modal: 'meal-edit' }, '');
+				} catch { /* noop */ }
+				return;
+			}
+			if (aiSheetOpen) {
+				aiSheetOpen = false;
+				try {
+					history.pushState({ modal: 'meal-edit' }, '');
+				} catch { /* noop */ }
+				return;
+			}
+			if (saveFavOpen) {
+				saveFavOpen = false;
+				try {
+					history.pushState({ modal: 'meal-edit' }, '');
+				} catch { /* noop */ }
+				return;
+			}
+			onclose();
+		};
+		window.addEventListener('popstate', handlePopState);
+		return () => {
+			window.removeEventListener('popstate', handlePopState);
+		};
+	});
+
+	function handleSheetClose() {
+		if (typeof history !== 'undefined') {
+			try {
+				history.back();
+				return;
+			} catch { /* noop */ }
+		}
+		onclose();
+	}
+
 	function editComponent(i: number) {
 		editingComponentIndex = i;
 		addSheetOpen = true;
@@ -249,7 +316,8 @@
 						carbsPer100: c.carbsPer100,
 						sugarPer100: c.sugarPer100,
 						fiberPer100: c.fiberPer100,
-						saltPer100: c.saltPer100
+						saltPer100: c.saltPer100,
+						micros: c.micros
 					}))
 				})
 			});
@@ -294,7 +362,7 @@
 </script>
 
 
-<ManageSheetShell accent="#FB923C" title={meal.id ? t.nutrition_edit_meal : t.nutrition_new_meal} subtitle={draftRestored ? t.nutrition_draft_restored : null} {onclose} zIndex={60} maxHeight="92dvh">
+<ManageSheetShell accent="#DC2626" title={meal.id ? t.nutrition_edit_meal : t.nutrition_new_meal} subtitle={draftRestored ? t.nutrition_draft_restored : null} onclose={handleSheetClose} zIndex={60} fullscreen={true}>
 	{#snippet headerActions()}
 		<button type="button" onclick={() => { onclose(); goto('/tracker/nutrition/favorites'); }} class="nutrition-header-action" aria-label={t.nutrition_favorites_manage}>
 			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -371,9 +439,14 @@
 				<section class="manage-settings-surface nutrition-food-list">
 				{#each components as c, i (i)}
 					{@const kcal = Math.round(compKcal(c))}
+					{@const metaText = c.unit === 'portion'
+						? (c.customName && c.gramsPerPiece === 100
+							? `${c.amount} ${c.amount === 1 ? t.nutrition_unit_portion : t.nutrition_unit_portions}`
+							: `${c.amount} ${c.amount === 1 ? t.nutrition_unit_portion : t.nutrition_unit_portions}${c.gramsPerPiece && c.gramsPerPiece > 0 ? ` (${Math.round(c.amount * c.gramsPerPiece)} g)` : ''}`)
+						: `${c.amount}${c.unit === 'piece' ? ` ${t.nutrition_unit_short_piece}` : c.unit}`}
 					<NutritionFoodRow
 						title={c.displayName}
-						meta={`${c.amount}${c.unit === 'piece' ? ` ${t.nutrition_unit_short_piece}` : c.unit}`}
+						meta={metaText}
 						trailing={`${kcal} kcal`}
 						imageUrl={c.imageUrl}
 						onactivate={() => editComponent(i)}
@@ -383,6 +456,9 @@
 				{/each}
 				<button type="button" onclick={() => { editingComponentIndex = null; addSheetOpen = true; }} class="nutrition-add-row">
 					{t.nutrition_add_food_or_meal}
+				</button>
+				<button type="button" onclick={() => (aiSheetOpen = true)} class="nutrition-ai-add-row">
+					{t.ai_nutrition_button}
 				</button>
 				</section>
 			</div>
@@ -412,9 +488,11 @@
 
 {#if addSheetOpen}
 	<AddComponentSheet
+		bind:this={addComponentRef}
 		initial={editingComponentIndex !== null ? components[editingComponentIndex] : null}
 		onclose={() => { addSheetOpen = false; editingComponentIndex = null; }}
 		onadd={addComponent}
+		onaddbatch={addComponentsBatch}
 		onpickmeal={applyFavorite}
 	/>
 {/if}
@@ -459,6 +537,16 @@
 	</ManageSheetShell>
 {/if}
 
+{#if aiSheetOpen}
+	<AiFoodEstimatorSheet
+		zIndex={80}
+		onclose={() => (aiSheetOpen = false)}
+		onaddcomponents={(newComps) => {
+			components = [...components, ...newComps];
+		}}
+	/>
+{/if}
+
 <style>
 	.nutrition-header-action { display: flex; min-height: 40px; align-items: center; justify-content: center; gap: 5px; padding-inline: 8px; border-radius: 12px; color: var(--color-on-surface-variant); font-size: 11px; font-weight: 650; }
 	.nutrition-header-action:active { background: color-mix(in srgb, #FB923C 8%, transparent); color: #FB923C; }
@@ -482,6 +570,22 @@
 	.nutrition-section-heading strong { color: #FB923C; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
 	.nutrition-food-list :global(.nutrition-food-row + .nutrition-food-row) { border-top: 1px solid var(--bubble-container-border); }
 	.nutrition-add-row { width: 100%; min-height: 44px; border-top: 1px solid var(--bubble-container-border); color: #FB923C; font-size: 13px; font-weight: 650; }
+	.nutrition-ai-add-row {
+		width: 100%;
+		min-height: 40px;
+		border-top: 1px dashed var(--bubble-container-border);
+		color: #FB923C;
+		font-size: 13px;
+		font-weight: 650;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		background: color-mix(in srgb, #FB923C 4%, transparent);
+	}
+	.nutrition-ai-add-row:active {
+		background: color-mix(in srgb, #FB923C 10%, transparent);
+	}
 	.nutrition-meal-summary { padding: 10px; }
 	.nutrition-secondary-action { display: flex; min-height: 40px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--bubble-container-border); border-radius: 12px; color: #FB923C; font-size: 12px; font-weight: 650; }
 </style>

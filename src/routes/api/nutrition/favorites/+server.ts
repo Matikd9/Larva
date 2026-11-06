@@ -5,6 +5,7 @@ import { db } from '#lib/db';
 import { nutritionFavorites, genericFoods } from '#lib/db/schema';
 import { and, eq, desc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { type EssentialMicros, parseMicrosJson, stringifyMicrosJson } from '#lib/micronutrients';
 
 export const GET: RequestHandler = async (event) => {
 	const { error, user } = authGuard(event);
@@ -20,7 +21,8 @@ export const GET: RequestHandler = async (event) => {
 		genericCarbs: genericFoods.carbsPer100,
 		genericSugar: genericFoods.sugarPer100,
 		genericFiber: genericFoods.fiberPer100,
-		genericSalt: genericFoods.saltPer100
+		genericSalt: genericFoods.saltPer100,
+		genericMicros: genericFoods.microsJson
 	})
 		.from(nutritionFavorites)
 		.leftJoin(genericFoods, eq(nutritionFavorites.genericFoodId, genericFoods.id))
@@ -36,7 +38,8 @@ export const GET: RequestHandler = async (event) => {
 		customCarbsPer100: r.fav.customCarbsPer100 ?? r.genericCarbs,
 		customSugarPer100: r.fav.customSugarPer100 ?? r.genericSugar,
 		customFiberPer100: r.fav.customFiberPer100 ?? r.genericFiber,
-		customSaltPer100: r.fav.customSaltPer100 ?? r.genericSalt
+		customSaltPer100: r.fav.customSaltPer100 ?? r.genericSalt,
+		micros: parseMicrosJson(r.fav.microsJson ?? r.genericMicros)
 	}));
 	return Response.json({ favorites: favs });
 };
@@ -50,10 +53,26 @@ export const POST: RequestHandler = async (event) => {
 		const { displayName, productBarcode, genericFoodId, imageUrl,
 			customKcalPer100, customProteinPer100, customFatPer100, customCarbsPer100,
 			customSugarPer100, customFiberPer100, customSaltPer100,
-			defaultAmount, defaultUnit, defaultGramsPerPiece } = body;
+			defaultAmount, defaultUnit, defaultGramsPerPiece, micros } = body as {
+			displayName?: string;
+			productBarcode?: string | null;
+			genericFoodId?: string | null;
+			imageUrl?: string | null;
+			customKcalPer100?: number | null;
+			customProteinPer100?: number | null;
+			customFatPer100?: number | null;
+			customCarbsPer100?: number | null;
+			customSugarPer100?: number | null;
+			customFiberPer100?: number | null;
+			customSaltPer100?: number | null;
+			defaultAmount?: number;
+			defaultUnit?: 'g' | 'ml' | 'piece' | 'portion';
+			defaultGramsPerPiece?: number | null;
+			micros?: EssentialMicros | null;
+		};
 
 		if (typeof displayName !== 'string' || !displayName.trim()) return Response.json({ error: 'displayName required' }, { status: 400 });
-		if (!['g', 'ml', 'piece'].includes(defaultUnit)) return Response.json({ error: 'invalid unit' }, { status: 400 });
+		if (!defaultUnit || !['g', 'ml', 'piece', 'portion'].includes(defaultUnit)) return Response.json({ error: 'invalid unit' }, { status: 400 });
 		if (typeof defaultAmount !== 'number' || !(defaultAmount > 0)) return Response.json({ error: 'invalid amount' }, { status: 400 });
 
 		// Dedupe: existiert bereits ein Favorit mit gleichem Barcode, gleichem Generic-Food,
@@ -103,6 +122,7 @@ export const POST: RequestHandler = async (event) => {
 			customSugarPer100: customSugarPer100 ?? null,
 			customFiberPer100: customFiberPer100 ?? null,
 			customSaltPer100: customSaltPer100 ?? null,
+			microsJson: stringifyMicrosJson(micros),
 			defaultAmount,
 			defaultUnit,
 			defaultGramsPerPiece: defaultGramsPerPiece ?? null,

@@ -20,7 +20,7 @@ export type UserSettings = {
 	lang?: Locale;
 	timeZone?: string;
 	theme?: 'system' | 'light' | 'dark';
-	colorScheme?: 'forest' | 'classic' | 'indigo';
+	colorScheme?: 'crimson' | 'forest' | 'classic' | 'indigo';
 	categorySortEnabled?: boolean;
 	categoryOrder?: string[];
 	listCategorySettings?: Record<string, ListCategorySettings>;
@@ -51,6 +51,12 @@ export type UserSettings = {
 	moodWeeklyReviewEnabled?: boolean;
 	dismissedMoodWeeklyReviewWeek?: string;
 	nutritionTrackerEnabled?: boolean;
+	nutritionMealSubdivisionsEnabled?: boolean;
+	aiNutritionProvider?: 'gemini' | 'openai';
+	aiGeminiApiKey?: string;
+	aiGeminiModel?: 'gemini-flash-lite-latest' | 'gemini-flash-latest' | 'gemini-3.5-flash-lite' | 'gemini-3.5-flash' | 'gemini-2.5-flash' | string;
+	aiOpenaiApiKey?: string;
+	aiOpenaiModel?: 'gpt-4o-mini' | 'gpt-4o';
 	hiddenMoodTags?: string[];
 	greetingEnabled?: boolean;
 	wakeLockLists?: boolean;
@@ -59,7 +65,7 @@ export type UserSettings = {
 };
 
 export const DEFAULT_SETTINGS = {
-	lang: 'de' as Locale,
+	lang: 'en' as Locale,
 	categorySortEnabled: true,
 	categoryOrder: [...DEFAULT_CATEGORY_ORDER]
 };

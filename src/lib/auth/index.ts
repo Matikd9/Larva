@@ -2,6 +2,7 @@ import { db } from '#lib/db';
 import { users, sessions, userInvites, pushSubscriptions } from '#lib/db/schema';
 import { and, eq, ne } from 'drizzle-orm';
 import { closeSessionStreams, closeUserStreams } from '#lib/server/sessionStreams';
+import { seedUserDefaultSupplements } from '#lib/server/supplementSeed';
 import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 
 export function generateId(len = 24): string {
@@ -44,6 +45,11 @@ export async function createUser(
 			updatedAt: ts
 		})
 		.run();
+	try {
+		seedUserDefaultSupplements(id);
+	} catch (e) {
+		console.error('[auth] Failed to seed default supplements for new user:', e);
+	}
 	return id;
 }
 

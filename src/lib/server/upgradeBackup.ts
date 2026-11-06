@@ -55,6 +55,7 @@ export function markSuccessfulStart(database: Database.Database, version: string
 }
 
 async function flush(filename: string) {
+	if (process.platform === 'win32') return;
 	const handle = await open(filename, 'r');
 	try { await handle.sync(); } finally { await handle.close(); }
 }

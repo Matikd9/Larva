@@ -2,6 +2,7 @@ import { configureOrigin } from './runtime-origin.mjs';
 
 // Configure the adapter before its modules read the environment. The listener is
 // installed before the event loop can accept requests, retaining adapter shutdown.
+process.env.BODY_SIZE_LIMIT = process.env.BODY_SIZE_LIMIT || '15M';
 const applyOrigin = configureOrigin(process.env);
 const { server } = await import('../build/index.js');
 server.prependListener('request', applyOrigin);

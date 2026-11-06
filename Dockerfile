@@ -45,6 +45,7 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
 ENV DATABASE_URL=/app/data/groly.db
+ENV BODY_SIZE_LIMIT=15M
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10m --retries=3 CMD wget -qO- "http://127.0.0.1:${PORT:-3000}/api/health" || exit 1
 
