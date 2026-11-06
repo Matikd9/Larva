@@ -54,8 +54,10 @@ export const PUT: RequestHandler = async (event) => {
 		updates.categoryOverride = body.categoryOverride ?? null;
 	}
 
-	db.update(items).set(updates).where(eq(items.id, item.id)).run();
-	db.update(lists).set({ updatedAt: ts }).where(eq(lists.id, item.listId)).run();
+	db.transaction(tx => {
+		tx.update(items).set(updates).where(eq(items.id, item.id)).run();
+		tx.update(lists).set({ updatedAt: ts }).where(eq(lists.id, item.listId)).run();
+	});
 
 	const updated = db.select().from(items).where(eq(items.id, item.id)).get()!;
 	const createdByUsername = updated.createdBy

@@ -46,7 +46,8 @@ export const PUT: RequestHandler = async (event) => {
 	const safeExcludedIds = excludedIds.filter(id => validIds.has(id));
 
 	// Delete existing exclusions for this recipe's ingredients
-	if (validIngredients.length > 0) {
+	db.transaction(() => {
+		if (validIngredients.length > 0) {
 		db.delete(recipeIngredientExclusions)
 			.where(and(
 				eq(recipeIngredientExclusions.userId, user!.id),
@@ -62,6 +63,8 @@ export const PUT: RequestHandler = async (event) => {
 			ingredientId
 		}).run();
 	}
+
+	});
 
 	return Response.json({ ok: true });
 };

@@ -47,7 +47,8 @@ export const PUT: RequestHandler = async (event) => {
 		const newRecipeId = randomUUID();
 
 		// Copy the recipe
-		db.insert(recipes).values({
+		db.transaction(() => {
+			db.insert(recipes).values({
 			id: newRecipeId,
 			userId: user!.id,
 			title: original.title,
@@ -78,6 +79,8 @@ export const PUT: RequestHandler = async (event) => {
 		}
 
 		db.delete(recipeShares).where(eq(recipeShares.id, event.params.id)).run();
+		});
+
 		return Response.json({ recipeId: newRecipeId });
 	}
 

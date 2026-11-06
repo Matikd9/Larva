@@ -2,9 +2,9 @@
 import type { RequestHandler } from './$types';
 import { authGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
-import { mealPlanEntries, recipes, recipeIngredients, recipeIngredientExclusions, items, lists, listMembers, itemHistory, users } from '#lib/db/schema';
-import { eq, and, gte, lte, inArray, sql } from 'drizzle-orm';
-import { randomUUID } from 'crypto';
+import { mealPlanEntries, recipes, recipeIngredients, recipeIngredientExclusions, lists, listMembers, users } from '#lib/db/schema';
+import { eq, and, gte, lte, inArray } from 'drizzle-orm';
+import { randomUUID, createHash } from 'crypto';
 import { scaleAmount } from '#lib/recipeUtils';
 import { now as dbNow, generateId } from '#lib/auth';
 import { emitToListMembers } from '#lib/server/userEvents';
@@ -12,6 +12,7 @@ import { schedulePushForItemAdded } from '#lib/server/pushDebounce';
 import { getCategoryPreferenceMap } from '#lib/server/categoryPreferences';
 import { resolveCategoryOverrideForCreate } from '#lib/categoryPreferences';
 import { toAddedItemEventPayload } from '#lib/server/itemEventPayload';
+import { persistItemCreate } from '#lib/server/itemCreate';
 
 // GET /api/meal-plan?from=2026-04-14&to=2026-04-20
 export const GET: RequestHandler = async (event) => {
@@ -56,7 +57,14 @@ export const PUT: RequestHandler = async (event) => {
 
 	try {
 		const body = await event.request.json();
-		const { date, recipeId, note, servings } = body;
+		const { id: clientId, date, recipeId, note, servings } = body;
+
+		if (typeof clientId === 'string' && clientId.trim().length > 0 && clientId.length <= 64) {
+			const existing = db.select({ id: mealPlanEntries.id }).from(mealPlanEntries)
+				.where(and(eq(mealPlanEntries.id, clientId.trim()), eq(mealPlanEntries.userId, user!.id)))
+				.get();
+			if (existing) return Response.json({ id: existing.id, deduped: true }, { status: 200 });
+		}
 
 		if (!date || typeof date !== 'string') return Response.json({ error: 'date required' }, { status: 400 });
 
@@ -67,7 +75,7 @@ export const PUT: RequestHandler = async (event) => {
 		}
 
 		const ts = dbNow();
-		const id = randomUUID();
+		const id = (typeof clientId === 'string' && clientId.trim().length > 0 && clientId.length <= 64) ? clientId.trim() : randomUUID();
 		db.insert(mealPlanEntries).values({
 			id,
 			userId: user!.id,
@@ -93,7 +101,7 @@ export const POST: RequestHandler = async (event) => {
 
 	try {
 		const body = await event.request.json();
-		const { dates, listId } = body as { dates: string[]; listId: string };
+		const { dates, listId, batchId } = body as { dates: string[]; listId: string; batchId?: string };
 
 		if (!Array.isArray(dates) || !listId) {
 			return Response.json({ error: 'dates and listId required' }, { status: 400 });
@@ -184,38 +192,59 @@ export const POST: RequestHandler = async (event) => {
 		const categoryPreferenceMap = getCategoryPreferenceMap(user!.id);
 		const ts = dbNow();
 		let added = 0;
+		const eventsToEmit: Parameters<typeof emitToListMembers>[1][] = [];
 
-		for (const item of itemsToAdd) {
-			const id = generateId(16);
-			const categoryOverride = resolveCategoryOverrideForCreate(item.name, null, categoryPreferenceMap);
-			db.insert(items).values({
-				id,
-				listId,
-				name: item.name,
-				quantityInfo: item.quantityInfo,
-				isChecked: false,
-				categoryOverride,
-				createdBy: user!.id,
-				createdAt: ts,
-				updatedAt: ts
-			}).run();
+		db.transaction(() => {
 
-			db.insert(itemHistory)
-				.values({ userId: user!.id, name: item.name, useCount: 1, lastUsedAt: ts })
-				.onConflictDoUpdate({
-					target: [itemHistory.userId, itemHistory.name],
-					set: { useCount: sql`${itemHistory.useCount} + 1`, lastUsedAt: ts }
-				})
-				.run();
+			for (let i = 0; i < itemsToAdd.length; i++) {
+				const item = itemsToAdd[i];
+				const id = (typeof batchId === 'string' && batchId.length > 0)
+					? createHash('sha256').update(`${listId}:${batchId}:${i}:${item.name}`).digest('base64url').slice(0, 16)
+					: generateId(16);
+				const categoryOverride = resolveCategoryOverrideForCreate(item.name, null, categoryPreferenceMap);
+				const persisted = persistItemCreate(db, {
+					id,
+					listId,
+					name: item.name,
+					quantityInfo: item.quantityInfo,
+					categoryOverride,
+					createdBy: user!.id,
+					createdAt: ts,
+					updatedAt: ts
+				});
+				if (!persisted.inserted) continue;
 
-			const newItem = toAddedItemEventPayload({ id, listId, name: item.name, quantityInfo: item.quantityInfo, isChecked: false, checkedAt: null, categoryOverride, createdBy: user!.id, createdAt: ts, updatedAt: ts }, creator?.username ?? null);
-			emitToListMembers(listId, { type: 'item_added', listId, item: newItem, listUpdatedAt: ts, byUserId: user!.id });
-			added++;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+				const newItem = toAddedItemEventPayload(persisted.item, creator?.username ?? null);
+				eventsToEmit.push({ type: 'item_added', listId, item: newItem, listUpdatedAt: ts, byUserId: user!.id });
+				added++;
 		}
 
-		db.update(lists).set({ updatedAt: ts }).where(eq(lists.id, listId)).run();
 
-		schedulePushForItemAdded({
+		});
+
+		for (const event of eventsToEmit) {
+			emitToListMembers(listId, event);
+		}
+
+		if (added > 0) schedulePushForItemAdded({
 			listId,
 			listName: list.name,
 			itemName: itemsToAdd[0].name + (itemsToAdd.length > 1 ? ` + ${itemsToAdd.length - 1}` : ''),

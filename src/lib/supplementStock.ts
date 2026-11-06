@@ -20,7 +20,9 @@ export function recalculateSupplementStock(
 	newAmount: number
 ): StockAdjustment {
 	if (stockQuantity == null) return { stockQuantity: null, stockDeducted: null };
-	const restored = Math.max(0, stockQuantity) + Math.max(0, previousStockDeducted ?? previousAmount);
+	const restored =
+		Math.max(0, stockQuantity) +
+		(previousStockDeducted != null ? Math.max(0, previousStockDeducted) : 0);
 	return deductSupplementStock(restored, newAmount);
 }
 
@@ -30,5 +32,5 @@ export function restoreSupplementStock(
 	stockDeducted: number | null
 ): number | null {
 	if (stockQuantity == null) return null;
-	return Math.max(0, stockQuantity) + Math.max(0, stockDeducted ?? amount);
+	return Math.max(0, stockQuantity) + (stockDeducted != null ? Math.max(0, stockDeducted) : 0);
 }

@@ -28,7 +28,7 @@ function migrateItemHistory() {
 		GROUP BY l.owner_id, i.name
 	`);
 
-	db.insert(appMeta).values({ key: 'item_history_migrated', value: '1' }).run();
+	db.insert(appMeta).values({ key: 'item_history_migrated', value: '1' }).onConflictDoNothing().run();
 }
 
 function ensureSupplementLogNoteColumn() {
@@ -37,7 +37,7 @@ function ensureSupplementLogNoteColumn() {
 	// greater than the latest applied one. PRAGMA + ALTER is idempotent and safe both for
 	// affected prod DBs and fresh installs where 0031 already ran.
 	const cols = sqlite.prepare(`PRAGMA table_info(supplement_logs)`).all() as Array<{ name: string }>;
-	if (!cols.some((c) => c.name === 'note')) {
+	if (cols.length > 0 && !cols.some((c) => c.name === 'note')) {
 		sqlite.exec(`ALTER TABLE supplement_logs ADD COLUMN note text`);
 	}
 }
@@ -46,7 +46,7 @@ function ensureMealFavoriteCaffeineColumn() {
 	// Safety net für Migration 0043, falls deren Journal-`when`-Timestamp übersprungen
 	// wurde (siehe ensureSupplementLogNoteColumn). PRAGMA + ALTER ist idempotent.
 	const cols = sqlite.prepare(`PRAGMA table_info(nutrition_meal_favorites)`).all() as Array<{ name: string }>;
-	if (!cols.some((c) => c.name === 'caffeine_drink_id')) {
+	if (cols.length > 0 && !cols.some((c) => c.name === 'caffeine_drink_id')) {
 		sqlite.exec(`ALTER TABLE nutrition_meal_favorites ADD COLUMN caffeine_drink_id text`);
 	}
 }
@@ -115,10 +115,10 @@ function bootstrapRecipeNutrition() {
 	`);
 	sqlite.exec(`CREATE INDEX IF NOT EXISTS recipe_nutrition_components_recipe_id_idx ON recipe_nutrition_components (recipe_id)`);
 	const cols = sqlite.prepare(`PRAGMA table_info(recipes)`).all() as Array<{ name: string }>;
-	if (!cols.some((c) => c.name === 'nutrition_mapped_servings')) {
+	if (cols.length > 0 && !cols.some((c) => c.name === 'nutrition_mapped_servings')) {
 		sqlite.exec(`ALTER TABLE recipes ADD COLUMN nutrition_mapped_servings integer`);
 	}
-	if (!cols.some((c) => c.name === 'nutrition_ingredients_snapshot')) {
+	if (cols.length > 0 && !cols.some((c) => c.name === 'nutrition_ingredients_snapshot')) {
 		sqlite.exec(`ALTER TABLE recipes ADD COLUMN nutrition_ingredients_snapshot text`);
 	}
 }
@@ -140,10 +140,12 @@ function bootstrapCaffeineTables() {
 			amount_ml INTEGER NOT NULL,
 			caffeine_mg INTEGER NOT NULL,
 			logged_at INTEGER NOT NULL,
+			client_log_id TEXT,
 			created_at INTEGER NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS caffeine_logs_user_id_idx ON caffeine_logs(user_id);
 		CREATE INDEX IF NOT EXISTS caffeine_logs_logged_at_idx ON caffeine_logs(logged_at);
+		CREATE UNIQUE INDEX IF NOT EXISTS caffeine_logs_client_log_id_unique ON caffeine_logs(user_id, client_log_id);
 		DELETE FROM caffeine_drinks WHERE id IN (
 			'espresso','doppelter-espresso','filterkaffee','cappuccino',
 			'latte-macchiato','cold-brew','schwarztee','gruentee','energy-drink','cola'
@@ -174,8 +176,10 @@ function bootstrapMoodTables() {
 			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			date TEXT NOT NULL,
 			mood INTEGER NOT NULL,
+			energy INTEGER,
 			activities TEXT,
 			note TEXT,
+			gratitude TEXT,
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		);
@@ -354,14 +358,14 @@ async function initialize() {
 	runMigrations();
 	ensureSupplementLogNoteColumn();
 	ensureMealFavoriteCaffeineColumn();
-	ensureMicrosColumns();
 	ensureBarcodeCacheIngredientsColumn();
 	bootstrapRecipeNutrition();
+	ensureMicrosColumns();
+	bootstrapGenericFoods();
 	bootstrapAdmin();
 	migrateItemHistory();
 	bootstrapCaffeineTables();
 	bootstrapMoodTables();
-	bootstrapGenericFoods();
 	bootstrapSupplementCatalog();
 	seedAllEmptyUsersDefaultSupplements();
 	await notifyOnNewVersion();

@@ -7,7 +7,7 @@
 	import { measureHeight } from '#lib/measureHeight';
 	import HamburgerMenu from '#lib/components/HamburgerMenu.svelte';
 	import { t, currentLang } from '#lib/i18n.svelte';
-	import { cacheSupplements, getOfflineSupplements, mergePendingSupplementStock, cacheTodayLogs, getOfflineTodayLogs, cacheWaterLogs, getOfflineWaterLogsToday, cacheCaffeineLogs, getOfflineCaffeineLogsToday, cacheCaffeineDrinks, getOfflineCaffeineDrinks, cacheMeditationLogs, getOfflineMeditationLogsToday, getPendingLogs, onSupplementLogSynced } from '#lib/sync/manager';
+	import { cacheSupplements, getOfflineSupplements, mergePendingSupplementStock, cacheTodayLogs, getOfflineTodayLogs, cacheWaterLogs, getOfflineWaterLogsToday, cacheCaffeineLogs, getOfflineCaffeineLogsToday, cacheCaffeineDrinks, getOfflineCaffeineDrinks, cacheMeditationLogs, getOfflineMeditationLogsToday, onSupplementLogSynced } from '#lib/sync/manager';
 	import { displayUnit } from '#lib/units';
 	import { formatTime } from '#lib/dates';
 	import { flushUserSettings, userSettings } from '#lib/userSettings.svelte';
@@ -320,12 +320,14 @@
 	async function loadSupplements() {
 		const cacheUserId = data.user?.id ?? null;
 		const requestId = ++supplementsRequestId;
-		const requestStartedAt = Date.now();
+		const reqStartSupp = Date.now();
+
+
 		try {
 			const res = await fetch('/api/supplements');
 			if (!res.ok) throw new Error();
 			const data = await res.json() as { supplements: Supplement[] };
-			const merged = await mergePendingSupplementStock(data.supplements, requestStartedAt);
+			const merged = await mergePendingSupplementStock(data.supplements, reqStartSupp);
 			if (requestId !== supplementsRequestId) return;
 			await cacheSupplements(merged, cacheUserId);
 			if (requestId !== supplementsRequestId) return;
@@ -347,7 +349,9 @@
 	async function loadTodayLogs() {
 		const cacheUserId = data.user?.id ?? null;
 		const requestId = ++todayLogsRequestId;
-		const requestStartedAt = Date.now();
+		const reqStartToday = Date.now();
+
+
 		const from = todayStart();
 		const to = todayEnd();
 		try {
@@ -356,7 +360,7 @@
 			const data = await res.json();
 			const serverLogs = data.logs as Log[];
 			if (requestId !== todayLogsRequestId) return;
-			const merged = await cacheTodayLogs(serverLogs, requestStartedAt, cacheUserId);
+			const merged = await cacheTodayLogs(serverLogs, reqStartToday, cacheUserId);
 			if (requestId !== todayLogsRequestId) return;
 			todayLogs = merged;
 		} catch {
@@ -559,6 +563,7 @@
 		const from = d.getTime();
 		const to = from + 86_400_000 - 1;
 		try {
+	
 			const res = await fetch(`/api/water-logs?from=${from}&to=${to}`);
 			if (res.ok) {
 				const data = await res.json();
@@ -576,6 +581,7 @@
 
 	async function loadWaterReminders() {
 		if (!userSettings.waterTrackerEnabled) return;
+
 		try {
 			const res = await fetch('/api/water-reminders');
 			if (res.ok) {
@@ -590,22 +596,25 @@
 	}
 
 	async function loadWaterLogs() {
+		const reqStartWater = Date.now();
 		const cacheUserId = data.user?.id ?? null;
 		if (!userSettings.waterTrackerEnabled) return;
+
 		const from = todayStart();
 		const to = todayEnd();
 		try {
+	
 			const res = await fetch(`/api/water-logs?from=${from}&to=${to}`);
 			if (res.ok) {
 				const data = await res.json();
 				const serverLogs = data.logs as WaterLog[];
-				cacheWaterLogs(serverLogs, cacheUserId).catch(() => {});
-				const pending = await getPendingLogs('create_water_log', from, to);
-				const seen = new Set(serverLogs.map(l => (l as { clientLogId?: string }).clientLogId).filter(Boolean));
-				const extra = pending
-					.filter(p => !seen.has(p.clientLogId as string))
-					.map(p => ({ id: p.clientLogId as string, amountMl: p.amountMl as number, loggedAt: p.loggedAt as number } as WaterLog));
-				waterLogsToday = [...serverLogs, ...extra];
+				waterLogsToday = (await cacheWaterLogs(serverLogs, reqStartWater, cacheUserId)) as WaterLog[];
+
+
+
+
+
+
 			} else throw new Error();
 		} catch {
 			waterLogsToday = (await getOfflineWaterLogsToday()) as WaterLog[];
@@ -632,28 +641,30 @@
 	}
 
 	async function loadCaffeineLogs() {
+		const reqStartCaff = Date.now();
 		const cacheUserId = data.user?.id ?? null;
 		if (!userSettings.caffeineTrackerEnabled) return;
 		const from = todayStart();
 		const to = todayEnd();
 		try {
+	
 			const res = await fetch(`/api/caffeine-logs?from=${from}&to=${to}`);
 			if (res.ok) {
 				const data = await res.json();
 				const serverLogs = data.logs as CaffeineLog[];
-				cacheCaffeineLogs(serverLogs, cacheUserId).catch(() => {});
-				const pending = await getPendingLogs('create_caffeine_log', from, to);
-				const seen = new Set(serverLogs.map(l => (l as { clientLogId?: string }).clientLogId).filter(Boolean));
-				const extra = pending
-					.filter(p => !seen.has(p.clientLogId as string))
-					.map(p => ({
-						id: p.clientLogId as string,
-						drinkName: p.drinkName as string,
-						amountMl: p.amountMl as number,
-						caffeineMg: p.caffeineMg as number,
-						loggedAt: p.loggedAt as number
-					} as CaffeineLog));
-				caffeineLogsToday = [...serverLogs, ...extra];
+				caffeineLogsToday = (await cacheCaffeineLogs(serverLogs, reqStartCaff, cacheUserId)) as CaffeineLog[];
+
+
+
+
+
+
+
+
+
+
+
+
 			} else throw new Error();
 		} catch {
 			caffeineLogsToday = (await getOfflineCaffeineLogsToday()) as CaffeineLog[];
@@ -668,22 +679,24 @@
 	}
 
 	async function loadMeditationLogs() {
+		const reqStartMed = Date.now();
 		const cacheUserId = data.user?.id ?? null;
 		if (!userSettings.meditationTrackerEnabled) return;
 		const from = todayStart();
 		const to = todayEnd();
 		try {
+	
 			const res = await fetch(`/api/meditation-logs?from=${from}&to=${to}`);
 			if (res.ok) {
 				const data = await res.json();
 				const serverLogs = data.logs as MeditationLog[];
-				cacheMeditationLogs(serverLogs, cacheUserId).catch(() => {});
-				const pending = await getPendingLogs('create_meditation_log', from, to);
-				const seen = new Set(serverLogs.map(l => (l as { clientLogId?: string }).clientLogId).filter(Boolean));
-				const extra = pending
-					.filter(p => !seen.has(p.clientLogId as string))
-					.map(p => ({ id: p.clientLogId as string, durationSeconds: p.durationSeconds as number, loggedAt: p.loggedAt as number } as MeditationLog));
-				meditationLogsToday = [...serverLogs, ...extra];
+				meditationLogsToday = (await cacheMeditationLogs(serverLogs, reqStartMed, cacheUserId)) as MeditationLog[];
+
+
+
+
+
+
 			} else throw new Error();
 		} catch {
 			meditationLogsToday = (await getOfflineMeditationLogsToday()) as MeditationLog[];
@@ -794,6 +807,7 @@
 			to = last.getTime();
 		}
 		try {
+	
 			const res = await fetch(`/api/meditation-logs?from=${from}&to=${to}`);
 			if (res.ok) {
 				const data = await res.json();
@@ -828,6 +842,7 @@
 			to = last.getTime();
 		}
 		try {
+	
 			const res = await fetch(`/api/caffeine-logs?from=${from}&to=${to}`);
 			if (res.ok) {
 				const data = await res.json();

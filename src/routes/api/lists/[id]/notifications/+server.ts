@@ -1,4 +1,3 @@
-
 import type { RequestHandler } from './$types';
 import { authGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
@@ -40,18 +39,20 @@ export const PUT: RequestHandler = async (event) => {
 			.run();
 	} else {
 		// Member: in listMembers.notificationsEnabled + list_notification_prefs (für konsistente Abfrage)
-		db.update(listMembers)
-			.set({ notificationsEnabled: enabled })
-			.where(and(eq(listMembers.listId, listId), eq(listMembers.userId, user!.id)))
-			.run();
+		db.transaction(() => {
+			db.update(listMembers)
+				.set({ notificationsEnabled: enabled })
+				.where(and(eq(listMembers.listId, listId), eq(listMembers.userId, user!.id)))
+				.run();
 
-		db.insert(listNotificationPrefs)
-			.values({ listId, userId: user!.id, enabled })
-			.onConflictDoUpdate({
-				target: [listNotificationPrefs.listId, listNotificationPrefs.userId],
-				set: { enabled }
-			})
-			.run();
+			db.insert(listNotificationPrefs)
+				.values({ listId, userId: user!.id, enabled })
+				.onConflictDoUpdate({
+					target: [listNotificationPrefs.listId, listNotificationPrefs.userId],
+					set: { enabled }
+				})
+				.run();
+		});
 	}
 
 	return Response.json({ ok: true, enabled });

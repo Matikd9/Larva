@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { authGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
 import { supplements, supplementNutrients } from '#lib/db/schema';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
 export const GET: RequestHandler = async (event) => {
@@ -38,15 +38,25 @@ export const POST: RequestHandler = async (event) => {
 
 	try {
 		const body = await event.request.json();
-		const { name, unit, brand, info, notes, active, nutrients: nutrientRows, stockQuantity, defaultAmount } = body;
+		const { name, unit, brand, info, notes, active, nutrients: nutrientRows, stockQuantity, defaultAmount, id: clientId } = body;
 
 		if (!name?.trim()) return Response.json({ error: 'Name erforderlich' }, { status: 400 });
 		if (!unit?.trim()) return Response.json({ error: 'Einheit erforderlich' }, { status: 400 });
 
 		const now = Date.now();
-		const id = randomUUID();
+		if (typeof clientId === 'string' && clientId.trim().length > 0 && clientId.length <= 64) {
+			const existing = db.select({ id: supplements.id }).from(supplements)
+				.where(and(eq(supplements.id, clientId.trim()), eq(supplements.userId, user!.id)))
+				.get();
+			if (existing) {
+				return Response.json({ id: existing.id, deduped: true }, { status: 200 });
+			}
+		}
 
-		db.insert(supplements).values({
+		const id = (typeof clientId === 'string' && clientId.trim().length > 0 && clientId.length <= 64) ? clientId.trim() : randomUUID();
+
+		db.transaction(() => {
+			db.insert(supplements).values({
 			id,
 			userId: user!.id,
 			name: name.trim(),
@@ -76,6 +86,8 @@ export const POST: RequestHandler = async (event) => {
 				}).run();
 			}
 		}
+
+		});
 
 		return Response.json({ id }, { status: 201 });
 	} catch (e) {

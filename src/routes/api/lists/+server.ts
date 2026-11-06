@@ -114,10 +114,20 @@ export const POST: RequestHandler = async (event) => {
 	const { error, user } = authGuard(event);
 	if (error) return error;
 
-	const { name, description, iconId, locationLat = null, locationLng = null, locationName = null } = await event.request.json();
+	const { name, description, iconId, locationLat = null, locationLng = null, locationName = null, id: clientId } = await event.request.json();
 	if (!name?.trim()) return Response.json({ error: 'Name erforderlich' }, { status: 400 });
 
-	const id = generateId(16);
+	if (typeof clientId === 'string' && clientId.trim().length > 0 && clientId.length <= 32) {
+		const existing = db.select().from(lists).where(eq(lists.id, clientId.trim())).get();
+		if (existing) {
+			if (existing.ownerId === user!.id) {
+				return Response.json({ ...existing, isOwner: true, ownerUsername: null, deduped: true }, { status: 200 });
+			}
+			return Response.json({ error: 'Listen-ID bereits vergeben' }, { status: 409 });
+		}
+	}
+
+	const id = (typeof clientId === 'string' && clientId.trim().length > 0 && clientId.length <= 32) ? clientId.trim() : generateId(16);
 	const ts = now();
 	const safeIconId = iconId ?? null;
 	db.insert(lists).values({ id, name: name.trim(), description: description?.trim() ?? null, iconId: safeIconId, locationLat, locationLng, locationName, ownerId: user!.id, createdAt: ts, updatedAt: ts }).run();

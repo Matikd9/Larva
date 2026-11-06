@@ -12,6 +12,7 @@ interface OfflineList extends AccountCache {
 	description: string | null;
 	ownerId: string;
 	openCount: number;
+	createdAt?: number;
 	updatedAt: number;
 	locationLat?: number | null;
 	locationLng?: number | null;
@@ -26,6 +27,8 @@ interface OfflineItem extends AccountCache {
 	isChecked: boolean;
 	checkedAt: number | null;
 	categoryOverride: string | null;
+	createdBy?: string | null;
+	createdAt?: number;
 	updatedAt: number;
 	localConfirmedAt?: number;
 }
@@ -74,6 +77,7 @@ interface OfflineFavorite {
 	name: string;
 	quantityInfo: string | null;
 	categoryOverride: string | null;
+	createdAt?: number;
 }
 
 interface OfflineSupplement extends AccountCache {
@@ -82,12 +86,14 @@ interface OfflineSupplement extends AccountCache {
 	name: string;
 	unit: string;
 	brand: string | null;
+	info?: string | null;
 	active: boolean;
 	defaultAmount: number;
 	stockQuantity: number | null;
 	notes: string | null;
 	nutrients: unknown[];
 	sortOrder: number;
+	createdAt?: number;
 	updatedAt: number;
 	localStockUpdatedAt?: number;
 }
@@ -123,7 +129,7 @@ interface OfflineRecipe extends AccountCache {
 
 interface OfflineRecipeDetail extends OfflineRecipe {
 	sourceUrl: string | null;
-	ingredients: { id: string; amount: number | null; unit: string | null; name: string; sortOrder: number }[];
+	ingredients: { id: string; amount: string | null; unit: string | null; name: string; sortOrder: number }[];
 	steps: { id: string; stepNumber: number; text: string }[];
 }
 
@@ -132,6 +138,8 @@ interface OfflineWaterLog extends AccountCache {
 	amountMl: number;
 	loggedAt: number;
 	clientLogId?: string | null;
+	createdAt?: number;
+	localConfirmedAt?: number;
 }
 
 interface OfflineCaffeineLog extends AccountCache {
@@ -141,6 +149,8 @@ interface OfflineCaffeineLog extends AccountCache {
 	amountMl: number;
 	loggedAt: number;
 	clientLogId?: string | null;
+	createdAt?: number;
+	localConfirmedAt?: number;
 }
 
 interface OfflineMeditationLog extends AccountCache {
@@ -148,6 +158,8 @@ interface OfflineMeditationLog extends AccountCache {
 	durationSeconds: number;
 	loggedAt: number;
 	clientLogId?: string | null;
+	createdAt?: number;
+	localConfirmedAt?: number;
 }
 
 interface OfflineCaffeineDrink {

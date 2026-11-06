@@ -2,7 +2,7 @@
 import type { RequestHandler } from './$types';
 import { adminGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
-import { users } from '#lib/db/schema';
+import { users, items } from '#lib/db/schema';
 import { eq, asc, count } from 'drizzle-orm';
 import { now } from '#lib/auth';
 
@@ -25,11 +25,14 @@ export const PATCH: RequestHandler = async (event) => {
 		if (role !== 'admin' && role !== 'user') return Response.json({ error: 'Ungültige Rolle' }, { status: 400 });
 		if (isBootstrap) return Response.json({ error: 'Bootstrap-Admin kann nicht degradiert werden' }, { status: 403 });
 		if (actingUser!.id === targetId) return Response.json({ error: 'Du kannst deine eigene Rolle nicht ändern' }, { status: 403 });
-		if (role === 'user' && target.role === 'admin') {
-			const adminCount = db.select({ cnt: count(users.id) }).from(users).where(eq(users.role, 'admin')).get();
-			if ((adminCount?.cnt ?? 0) <= 1) return Response.json({ error: 'Der letzte Admin kann nicht degradiert werden' }, { status: 403 });
-		}
-		db.update(users).set({ role, updatedAt: now() }).where(eq(users.id, targetId)).run();
+		const error = db.transaction(() => {
+			if (role === 'user' && target.role === 'admin') {
+				const adminCount = db.select({ cnt: count(users.id) }).from(users).where(eq(users.role, 'admin')).get();
+				if ((adminCount?.cnt ?? 0) <= 1) return Response.json({ error: 'Der letzte Admin kann nicht degradiert werden' }, { status: 403 });
+			}
+			db.update(users).set({ role, updatedAt: now() }).where(eq(users.id, targetId)).run();
+		});
+		if (error) return error;
 	}
 
 	return Response.json({ ok: true });
@@ -52,13 +55,17 @@ export const DELETE: RequestHandler = async (event) => {
 		return Response.json({ error: 'Der ursprüngliche Admin-Account kann nicht gelöscht werden' }, { status: 403 });
 	}
 
-	if (target.role === 'admin') {
-		const adminCount = db.select({ cnt: count(users.id) }).from(users).where(eq(users.role, 'admin')).get();
-		if ((adminCount?.cnt ?? 0) <= 1) {
-			return Response.json({ error: 'Der letzte Admin kann nicht gelöscht werden' }, { status: 403 });
-		}
+	const error = db.transaction(() => {
+		if (target.role === 'admin') {
+			const adminCount = db.select({ cnt: count(users.id) }).from(users).where(eq(users.role, 'admin')).get();
+			if ((adminCount?.cnt ?? 0) <= 1) {
+				return Response.json({ error: 'Der letzte Admin kann nicht gelöscht werden' }, { status: 403 });
+			}
 	}
 
-	db.delete(users).where(eq(users.id, targetId)).run();
+		db.update(items).set({ createdBy: null }).where(eq(items.createdBy, targetId)).run();
+		db.delete(users).where(eq(users.id, targetId)).run();
+	});
+	if (error) return error;
 	return Response.json({ ok: true });
 };

@@ -21,6 +21,8 @@ export const PUT: RequestHandler = async (event) => {
 	if (!existing) return Response.json({ error: 'Not found' }, { status: 404 });
 
 	try {
+
+		let deactivatedReminders = 0;
 		const body = await event.request.json();
 		const { name, unit, brand, info, notes, active, nutrients: nutrientRows, stockQuantity, defaultAmount } = body;
 
@@ -31,7 +33,7 @@ export const PUT: RequestHandler = async (event) => {
 					unit: unit?.trim() ?? existing.unit,
 					brand: brand !== undefined ? (brand?.trim() || null) : existing.brand,
 					info: info !== undefined ? (info?.trim() || null) : existing.info,
-					notes: notes?.trim() || null,
+					notes: notes !== undefined ? (notes?.trim() || null) : existing.notes,
 					active: active !== undefined ? active : existing.active,
 					stockQuantity: stockQuantity !== undefined ? (stockQuantity != null ? Number(stockQuantity) : null) : existing.stockQuantity,
 					defaultAmount: defaultAmount != null ? Number(defaultAmount) : existing.defaultAmount,
@@ -59,10 +61,10 @@ export const PUT: RequestHandler = async (event) => {
 					}).run();
 				}
 			}
-		});
+
 
 		// Sync reminder schedules with supplement active state
-		let deactivatedReminders = 0;
+
 		if (active === false && existing.active === true) {
 			// Deactivating supplement → deactivate all active reminder schedules
 			const activeReminders = db
@@ -87,6 +89,8 @@ export const PUT: RequestHandler = async (event) => {
 				.where(eq(supplementReminderSchedules.supplementId, id))
 				.run();
 		}
+
+		});
 
 		return Response.json({ ok: true, deactivatedReminders });
 	} catch (e) {

@@ -30,4 +30,13 @@ describe('supplement stock arithmetic', () => {
 		expect(restoreSupplementStock(49, 1, 1)).toBe(50);
 		expect(restoreSupplementStock(null, 1, null)).toBeNull();
 	});
+
+	it('never restores phantom stock if no stock was originally deducted (BUG-008)', () => {
+		// BUG-008: Never restore phantom stock if no stock was originally deducted
+		expect(restoreSupplementStock(20, 5, null)).toBe(20);
+		expect(recalculateSupplementStock(20, 5, null, 2)).toEqual({
+			stockQuantity: 18,
+			stockDeducted: 2
+		});
+	});
 });

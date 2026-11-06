@@ -55,7 +55,8 @@ export const PUT: RequestHandler = async (event) => {
 			? null
 			: recipe.rating;
 
-	db.update(recipes).set({
+	db.transaction(() => {
+		db.update(recipes).set({
 		title: title.trim(),
 		description: description?.trim() || null,
 		imageUrl: imageUrl?.trim() || null,
@@ -135,6 +136,8 @@ export const PUT: RequestHandler = async (event) => {
 		}
 	}
 
+	});
+
 	return Response.json({ ok: true });
 };
 
@@ -147,6 +150,9 @@ export const DELETE: RequestHandler = async (event) => {
 		.get();
 	if (!recipe) return Response.json({ error: 'Nicht gefunden' }, { status: 404 });
 
-	db.delete(recipes).where(eq(recipes.id, event.params.id)).run();
+	db.transaction(() => {
+		db.delete(recipes).where(eq(recipes.id, event.params.id)).run();
+	});
+
 	return Response.json({ ok: true });
 };

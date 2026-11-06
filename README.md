@@ -1,20 +1,53 @@
-# Groly
+# Larva
 
 <p align="center">
-  <img src="static/icons/dark/icon.svg" width="96" alt="Groly" />
+  <img src="static/icons/dark/icon.svg" width="96" alt="Larva" />
 </p>
 
-Groly is a self-hosted app for **grocery lists, recipes, meal planning, and health and nutrition tracking**. The mobile interface puts navigation and main actions at the bottom of the screen, within thumb reach, so you can quickly add and check off shopping items.
+<p align="center">
+  <strong>Self-hosted, offline-first application for grocery shopping lists, recipes, weekly meal planning, health and nutrition tracking.</strong>
+</p>
 
-Shopping lists work **offline** and sync automatically when you reconnect. You can also share lists with other users to shop together, with changes synced in real time.
+<p align="center">
+  <img src="https://img.shields.io/badge/Svelte_5-Runes-FF3E00?logo=svelte&logoColor=white" alt="Svelte 5 Runes" />
+  <img src="https://img.shields.io/badge/SvelteKit-3.1-FF3E00?logo=svelte&logoColor=white" alt="SvelteKit 3.1" />
+  <img src="https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white" alt="TypeScript 6.0" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind CSS v4" />
+  <img src="https://img.shields.io/badge/SQLite-Drizzle_ORM-003B57?logo=sqlite&logoColor=white" alt="SQLite & Drizzle" />
+  <img src="https://img.shields.io/badge/PWA-Offline_First-5A0FC8?logo=pwa&logoColor=white" alt="Offline-First PWA" />
+  <img src="https://img.shields.io/badge/Node.js-%3E%3D24-339933?logo=nodedotjs&logoColor=white" alt="Node.js >=24" />
+</p>
 
-Import recipes from websites, add ingredients to shopping lists, and plan meals for the week. Track calories, macronutrients, supplements, water, caffeine, mood, and meditation, with goals, reminders, and history views. More features and screenshots are listed below.
+---
 
-Run Groly on your own server with **Docker Compose** or install it through **Unraid Community Applications**. Use it in a browser on your phone or computer, or add it to your home screen on iOS or Android as a **Progressive Web App (PWA)**.
+Larva is a privacy-first, self-hosted web application designed from the ground up for mobile ergonomics. Navigation and high-frequency actions stay anchored at the bottom of the screen within comfortable thumb reach, allowing you to rapidly add, organize, and check off items while on the move.
 
-See the [deployment guides](#deployment) for Docker Compose, Unraid, Synology, TrueNAS, QNAP, and Portainer.
+Shopping lists and habit trackers work **offline-first** through IndexedDB and sync automatically with the server when network connectivity is available. You can share lists with other family members or roommates to shop collaboratively, with state updates synchronized in real time via Server-Sent Events (SSE).
 
-**HTTPS is required** for offline mode, PWA installation, push notifications, barcode scanning, and location-based list opening. The admin invites users via one-time links; there is no public registration.
+Install Larva on your phone or desktop as a **Progressive Web App (PWA)** for a seamless native-app feel, or run it through your preferred browser.
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+  - [Shopping Lists](#shopping-lists)
+  - [Daily Tracker & Habits](#daily-tracker--habits)
+  - [Nutrition Tracker & Food Diary](#nutrition-tracker--food-diary)
+  - [Recipes & Meal Planning](#recipes--meal-planning)
+  - [Settings, Ergonomics & PWA](#settings-ergonomics--pwa)
+- [Architecture & Tech Stack](#architecture--tech-stack)
+- [Local Development](#local-development)
+- [Deployment](#deployment)
+  - [Docker Compose](#docker-compose)
+  - [Environment Variables](#environment-variables)
+  - [HTTPS Requirement](#https-requirement)
+  - [Push Notifications (Web Push)](#push-notifications-web-push)
+  - [Admin Password Recovery](#admin-password-recovery)
+- [User Management & Security](#user-management--security)
+- [Automated Database Maintenance](#automated-database-maintenance)
+
+---
 
 ## Features
 
@@ -24,7 +57,7 @@ See the [deployment guides](#deployment) for Docker Compose, Unraid, Synology, T
   <thead>
     <tr>
       <th align="center">Overview</th>
-      <th align="center">Shopping list</th>
+      <th align="center">Shopping List</th>
       <th align="center">Favourites</th>
     </tr>
   </thead>
@@ -37,32 +70,26 @@ See the [deployment guides](#deployment) for Docker Compose, Unraid, Synology, T
   </tbody>
 </table>
 
-Shared, offline-first shopping lists with real-time sync, smart suggestions, barcode scanning, and automatic categorization.
+- **Shared Collaborative Lists:** Share any list with other household members. State changes sync in real time using Server-Sent Events (SSE).
+- **Offline-First & Concurrency-Safe:** Add, check off, edit, or delete items completely offline. The background mutation queue synchronizes automatically upon reconnecting, protected against multi-tab race conditions via the **Web Locks API**.
+- **Integrated Barcode Scanner:** Scan barcodes with your mobile camera to quickly identify and append items. Powered by the native [BarcodeDetector API](https://developer.mozilla.org/en-US/docs/Web/API/BarcodeDetector) on Chromium/Android with a high-performance [ZBar WebAssembly](https://github.com/undecaf/zbar-wasm) fallback on iOS and Firefox.
+- **Open Food Facts Integration:** Product metadata is looked up against [Open Food Facts](https://world.openfoodfacts.org/), [Open Products Facts](https://world.openproductsfacts.org/), and [Open Beauty Facts](https://world.openbeautyfacts.org/) without exposing client IPs or requiring third-party API keys. Lookups are cached persistently in SQLite.
+- **Smart Category Sorting:** Items are automatically categorized by keyword matching (e.g. *"milk"* → Dairy, *"apple"* → Produce). Category order can be reordered globally or individually per list to reflect your local supermarket layout.
+- **Quick Entry:** Add multiple items in a single input string separated by commas (e.g., `2x Oat Milk, 500g Pasta, Apples`). Quantities and units are parsed automatically.
+- **Usage Frequency Suggestions:** Item inputs suggest previously purchased items ranked by personal frequency. Suggestion history is maintained per user.
+- **Swipe to Peek:** Swipe horizontally on truncated product names to read the full description in an overlay without accidentally checking the item off.
+- **Favourites Panel:** Bookmark frequent staples with a single tap to rapidly replenish lists across grocery runs.
 
-<details>
-<summary><strong>Show all shopping-list features</strong></summary>
+---
 
-#### Features
-
-- **Shared lists** – Share lists with other users; changes sync in real time via Server-Sent Events.
-- **Offline-first** – Add, check off, edit, and delete items without internet. Changes sync automatically when back online.
-- **Barcode scan** – Scan product barcodes with your camera to add items directly to your list (iOS and Android). Uses the native [BarcodeDetector API](https://developer.mozilla.org/en-US/docs/Web/API/BarcodeDetector) where available (Chrome/Android) with [ZBar WASM](https://github.com/undecaf/zbar-wasm) as a fallback for iOS and Firefox. Product names are looked up via [Open Food Facts](https://world.openfoodfacts.org/), [Open Products Facts](https://world.openproductsfacts.org/), and [Open Beauty Facts](https://world.openbeautyfacts.org/) — open, community-maintained product databases covering food, household, and personal care items. No API key required. Lookups are routed through your server (user IPs are not exposed) and cached persistently in SQLite. An offline indicator is shown in the scanner when there is no internet connection.
-- **Category sorting** – Items are automatically assigned a category based on keyword matching (e.g. "milk" → Dairy, "apple" → Fruit & Vegetables). The display order of categories can be customized in Settings to match your supermarket layout — globally or individually per list. Users can also override the category of any single item.
-- **Quick entry** – Add multiple items at once by separating them with commas — e.g. `2x Milk, 500g Ground beef, Bread`. Quantities at the start of each item are recognized automatically.
-- **Smart suggestions** – When adding items, previously used item names are suggested. Suggestions are tracked per user in a dedicated history table and ranked by usage frequency. Checked-off items older than 60 days are automatically removed from the database; suggestion history is retained for 6 months after last use.
-- **Swipe to peek** – Swipe left or right on any item tile whose name is truncated to reveal the full name in an overlay, without accidentally checking it off.
-- **Favourites** – Long-press an item and tap the star next to the quantity field to save it as a favourite. Favourited items are marked with a small green dot on their tile (can be turned off in Settings → Display). Open the favourites panel via + → Favourites to quickly re-add them to any list, sorted by category. Long-press a favourite card to remove it.
-
-</details>
-
-### Tracker
+### Daily Tracker & Habits
 
 <table align="center">
   <thead>
     <tr>
-      <th align="center">Today</th>
-      <th align="center">Quick log</th>
-      <th align="center">Weekly history</th>
+      <th align="center">Today Overview</th>
+      <th align="center">Quick Log</th>
+      <th align="center">Weekly History</th>
     </tr>
   </thead>
   <tbody>
@@ -74,67 +101,40 @@ Shared, offline-first shopping lists with real-time sync, smart suggestions, bar
   </tbody>
 </table>
 
-A unified health & lifestyle tracker — supplements, water, caffeine, meditation, and mood — each with a quick-log sheet and day/week/month history.
-
-<details>
-<summary><strong>Show all tracker features</strong></summary>
-
-#### More screenshots
-
 <table align="center">
   <thead>
     <tr>
-      <th align="center">Tracker log</th>
-      <th align="center">Mood</th>
-      <th align="center">Daily history</th>
+      <th align="center">Tracker Log</th>
+      <th align="center">Mood & Gratitude</th>
+      <th align="center">Monthly History</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td align="center"><img src="docs/screenshots/Log Tracker.png" width="180" alt="Quick-log view for health and lifestyle trackers" /></td>
       <td align="center"><img src="docs/screenshots/mood_tracker.png" width="180" alt="Daily mood tracking view with gratitude note" /></td>
-      <td align="center"><img src="docs/screenshots/Supplement History_0.png" width="180" alt="Daily supplement history and adherence view" /></td>
-    </tr>
-  </tbody>
-</table>
-
-<table align="center">
-  <thead>
-    <tr>
-      <th align="center">Monthly history</th>
-      <th align="center">Manage</th>
-      <th align="center">Edit</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
       <td align="center"><img src="docs/screenshots/Supplement History_2.png" width="180" alt="Monthly supplement history and adherence overview" /></td>
-      <td align="center"><img src="docs/screenshots/Manage Supplement.png" width="180" alt="Supplement management overview" /></td>
-      <td align="center"><img src="docs/screenshots/Edit Supplement.png" width="180" alt="Supplement editing and configuration view" /></td>
     </tr>
   </tbody>
 </table>
 
-#### Features
+- **Supplements & Nootropics:** One-tap quick intake logging. Define nutrient breakdowns per unit (e.g., 200 mg Magnesium per capsule); Larva calculates your aggregated daily micronutrient totals. Track inventory stock levels with direct reorder buttons that send items to your shopping list.
+- **Hydration Tracking:** Quick-log water intake with customizable presets, track progress towards your daily milliliter goal, and schedule interval reminders throughout the day.
+- **Caffeine Intake:** Built-in drink catalog (coffee, espresso, energy drinks, tea) with customizable default serving sizes and caffeine ratings. Visual threshold indicator alerts you when reaching your daily caffeine ceiling.
+- **Meditation Timer:** Full-screen timer with calming animations, configurable preparation countdowns, soothing start/end bell acoustics, and adherence metrics.
+- **Mood Journal:** Log daily mental well-being on a 1–5 scale accompanied by activity tags and gratitude reflections.
+- **Adherence Metrics & PDF Export:** Comprehensive day, week, and month history views with adherence heatmaps. Generate and export polished, printer-friendly PDF clinical reports for medical professionals or trainers.
 
-- **Supplements** – Quick-log intake (amount + time, one tap). Define nutrients per unit (e.g. 500 µg B12 per capsule) and Groly sums your total daily intake. Track stock and reorder to any list via the cart button. Per-supplement push reminders, active/inactive toggle, optional brand & info.
-- **Water** – Log with quick-add presets or a custom amount, set a daily goal (ml) with a fill bar, and schedule interval reminders within a time window.
-- **Caffeine** – Log from a built-in drink catalog (10 drinks, per-user default amounts), set a daily limit with a fill bar (red when exceeded), and hide drinks you don't use.
-- **Meditation** – Full-screen timer with quick-start presets or a custom duration, preparation phase, Zen progress animation, start/end sounds, daily goal, and optional reminders.
-- **Mood** – Log daily mood on a 1–5 scale with an optional gratitude note and optional check-in reminder.
-- **History & adherence** – Day, week, and month views for every tracker, with per-supplement adherence rates and heatmaps (scheduled vs. actually taken).
-- **PDF export** – Export selected sections (supplements, trackers, mood, nutrients) for any period as a PDF to share with a doctor or trainer. [Example report](docs/pdf/example-report.pdf).
+---
 
-</details>
-
-### Nutrition Tracker
+### Nutrition Tracker & Food Diary
 
 <table align="center">
   <thead>
     <tr>
-      <th align="center">Food diary</th>
-      <th align="center">Log meal</th>
-      <th align="center">Nutrition goals</th>
+      <th align="center">Food Diary</th>
+      <th align="center">Log Meal</th>
+      <th align="center">Macro Goals</th>
     </tr>
   </thead>
   <tbody>
@@ -146,49 +146,21 @@ A unified health & lifestyle tracker — supplements, water, caffeine, meditatio
   </tbody>
 </table>
 
-A full food diary with calorie and macro tracking, built on the same [Open Food Facts](https://world.openfoodfacts.org/) integration as the barcode scanner.
+- **Daily Food Diary:** Log meals across the day with real-time calorie calculation and macronutrient progress rings (Protein, Carbohydrates, Fats, Fiber).
+- **Dual Nutrition Database:** Search among 160+ built-in generic whole foods or query any branded item directly via the Open Food Facts barcode engine (includes Nutri-Score, Nova group, and nutritional values).
+- **Estimated Energy Calculation:** Set customized targets manually or let Larva compute recommended caloric targets using the Mifflin-St Jeor metabolic expenditure algorithm based on your physical parameters.
+- **Recipe Nutrition Mapping:** Map recipe ingredients to nutrition database entries once; Larva displays calculated calories per portion and enables logging prepared servings directly into your daily log.
 
-<details>
-<summary><strong>Show all nutrition features</strong></summary>
-
-#### More screenshots
-
-<table align="center">
-  <thead>
-    <tr>
-      <th align="center">Favourites</th>
-      <th align="center">Recipe setup</th>
-      <th align="center">Track recipe</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><img src="docs/screenshots/Nutrition Favorites.png" width="180" alt="Saved food and meal favourites" /></td>
-      <td align="center"><img src="docs/screenshots/Recipe Nutrition.png" width="180" alt="Recipe ingredients mapped to nutrition data" /></td>
-      <td align="center"><img src="docs/screenshots/Recipe Track Meal.png" width="180" alt="Recipe servings ready to track as a meal" /></td>
-    </tr>
-  </tbody>
-</table>
-
-#### Features
-
-- **Daily food diary** – Log meals across the day and see total calories plus protein, fat, carbs, and fiber as progress rings against your goal, with a per-meal and per-component breakdown.
-- **Two food sources** – Search 160+ built-in generic foods (fruit, veg, grains, dairy, meat, …, bilingual), or look up any branded product by name or barcode via Open Food Facts — with image, nutrition values, and Nutri-Score. Lookups are cached in SQLite.
-- **Daily goals** – Set calorie and macro targets manually, or let Groly estimate them from your sex, age, height, weight, and activity level (Mifflin-St Jeor).
-- **Favorites** – Save single foods or whole meals (with photo) you log often and re-add them in one tap. A meal favorite can optionally be linked to a caffeine drink so logging it also logs caffeine.
-- **From recipes** – Map a recipe's ingredients to nutrition data once; Groly then shows per-serving calories on the recipe and lets you track any number of servings straight into your food diary.
-- **Units & thumbnails** – Track in grams, millilitres, or pieces (with per-piece weight); products and meals carry thumbnails for quick recognition.
-
-</details>
+---
 
 ### Recipes & Meal Planning
 
 <table align="center">
   <thead>
     <tr>
-      <th align="center">Recipes</th>
-      <th align="center">Recipe details</th>
-      <th align="center">Meal planner</th>
+      <th align="center">Recipe Catalog</th>
+      <th align="center">Recipe Details</th>
+      <th align="center">Meal Planner</th>
     </tr>
   </thead>
   <tbody>
@@ -200,225 +172,259 @@ A full food diary with calorie and macro tracking, built on the same [Open Food 
   </tbody>
 </table>
 
-Create and organize recipes, scale servings, plan the week, and send ingredients directly to a shopping list.
+- **Recipe Library & Web Scraper:** Store, tag, rate, and organize personal recipes. Import full recipes, ingredients, and instructions directly from popular cooking sites via URL.
+- **Dynamic Serving Scaler:** Dynamically scale ingredient quantities by adjusting portion count.
+- **Weekly Meal Planner:** Schedule meals for every day of the week. Send ingredients from a single meal or the whole week's schedule directly into any shopping list with a single tap.
 
-<details>
-<summary><strong>Show all recipe and meal-planning features</strong></summary>
+---
 
-#### Features
-
-- **Recipes** – Create and manage recipes, scale servings, and add ingredients directly to a shopping list. Import recipes from popular recipe websites by URL.
-- **Weekly meal planner** – Plan meals for every day of the week. Assign recipes or free-text entries per day, adjust servings, and add ingredients from individual days or the entire week directly to a shopping list. Navigate forwards and backwards by week. Configurable as a quick access shortcut.
-
-</details>
-
-### Settings & App
+### Settings, Ergonomics & PWA
 
 <table align="center">
   <thead>
     <tr>
-      <th align="center">Settings</th>
-      <th align="center">Navigation menu</th>
+      <th align="center">Settings Page</th>
+      <th align="center">Navigation Menu</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td align="center"><img src="docs/screenshots/Settings Page.png" width="180" alt="Groly settings and customization options" /></td>
-      <td align="center"><img src="docs/screenshots/Options Menu.png" width="180" alt="Navigation menu with Groly app sections" /></td>
+      <td align="center"><img src="docs/screenshots/Settings Page.png" width="180" alt="Larva settings and customization options" /></td>
+      <td align="center"><img src="docs/screenshots/Options Menu.png" width="180" alt="Navigation menu with Larva app sections" /></td>
     </tr>
   </tbody>
 </table>
 
-Customize Groly for each user, install it as a PWA, and access frequently used lists and actions in fewer taps.
+- **Modular Feature Toggles:** Disable unused modules (Supplements, Habits, Recipes, or Nutrition) in *Settings → Display*. Unchecked modules are hidden from navigation and menus.
+- **Quick-Access Action Wheel:** Long-press the floating action button (`+`) to activate up to 4 configurable radial shortcuts (e.g., open specific lists, launch scanner).
+- **Location-Aware Automatic List Opening:** Bind geographical coordinates to lists (such as your local supermarket). When entering within a 100-meter radius, Larva can automatically navigate to that list.
+- **Dark & Light Mode:** Seamlessly harmonizes with operating system visual preferences.
+- **Internationalization (i18n):** Native support for English and German via `@inlang/paraglide-js`.
 
-<details>
-<summary><strong>Show all settings and app features</strong></summary>
+---
 
-#### Features
+## Architecture & Tech Stack
 
-- **Feature flags** – Supplements, Trackers, and Recipes can be independently enabled or disabled per user in Settings → Display. Hide sections you don't use — they disappear from the navigation entirely.
-- **Category sorting** – Customize the display order of categories globally or per list, to match your supermarket layout.
-- **Quick access shortcuts** – Long-press the + button to reveal up to 4 configurable shortcuts. Slide your finger to the desired shortcut and release to navigate — or release over empty space to cancel. Each shortcut can open a list, open a list with the add-item dialog, or jump straight into the barcode scanner. Configurable per user in Settings and synced across devices.
-- **Favourite indicator** – The green dot on favourited items can be turned off per user.
-- **Push notifications** – Get notified when someone adds an item to a shared list, when a new app version is available, and for supplement reminders. Works on iOS (16.4+) and Android.
-- **Location-based list opening** – Assign a location to any list (e.g. your supermarket). When you arrive within 100 meters, Groly automatically opens that list — no tapping required. Opt-in per user in Settings.
-- **PWA** – Installable on iOS and Android, works like a native app.
-- **Light & Dark mode** – Follows system preference automatically.
-- **Multi-user** – Admin invites users via one-time link, resets passwords through the same mechanism, and manages list sharing invitations.
-- **In-app changelog** – A "What's New" modal appears after each update and is always accessible from the menu.
-- **i18n** – German and English.
+Larva is engineered for reliability, deterministic offline operation, and sub-millisecond local latency:
 
-</details>
-
-## User Management
-
-Groly has no open registration; administrators invite users via one-time links.
-
-<details>
-<summary><strong>Show user management instructions</strong></summary>
-
-Administrators create accounts manually, so you control who has access to your instance.
-
-**Adding users:**
-
-1. Log in as admin
-2. Open the menu (☰, top right)
-3. Go to **Users**
-4. Tap **Add User**, enter a username and role — no password needed
-5. Copy or share the generated invite link with the new user
-6. The user opens the link and sets their own password directly
-
-Invite links are valid for 48 hours, are single-use, and can be regenerated by the admin at any time (the previous link is then invalidated). The same mechanism is used to reset a forgotten user password: open the user in the admin panel and tap **Reset password** to generate a fresh link.
-
-Only admin accounts can invite users, reset passwords, and manage list sharing.
-
-</details>
-
-## HTTPS
-
-**HTTPS is required** for secure access and the full PWA feature set.
-
-<details>
-<summary><strong>Show HTTPS setup options</strong></summary>
-
-Without HTTPS, the following features will not work:
-
-| Feature | Why HTTPS is needed |
-|---------|-------------------|
-| **Offline mode** | Service workers only register over HTTPS (browser requirement) |
-| **PWA installation** | Browsers only allow "Add to Home Screen" over HTTPS |
-| **Push notifications** | The Web Push API is restricted to HTTPS |
-| **Barcode scanner** | Camera access (`getUserMedia`) requires HTTPS |
-| **Session cookies** | The session cookie uses the `Secure` flag in production |
-
-### Getting HTTPS without a public domain
-
-HTTPS is required for the PWA install, push notifications, and secure cookies. If you don't already have a domain pointed at your server, pick one of the options below. Listed from easiest to most flexible:
-
-#### Tailscale — recommended for beginners
-No domain, no router config, no certificate renewal. Tailscale gives every device a real hostname with a valid Let's Encrypt certificate. Free for up to 100 devices.
-1. Install Tailscale on the host running Groly (native package, Docker container, or your platform's app store — see [tailscale.com/download](https://tailscale.com/download))
-2. Enable HTTPS: Tailscale Admin → DNS → Enable HTTPS
-3. Set `ORIGIN` to your Tailscale hostname, e.g. `https://my-server.tail-xxxxx.ts.net`
-
-#### Cloudflare Tunnel
-Zero-config HTTPS tunnel to your server, no port forwarding required. Free tier available. Useful if you already have a Cloudflare account or want a friendlier URL than the Tailscale one.
-
-#### Reverse Proxy
-Run Groly behind Nginx Proxy Manager, Caddy, or Traefik with your own domain and Let's Encrypt. Best fit if your server is already reachable from the internet and you have an existing reverse-proxy setup.
-
-</details>
-
-## Push Notifications (optional)
-
-Push notifications are optional and require HTTPS and a VAPID key pair.
-
-<details>
-<summary><strong>Show push notification setup</strong></summary>
-
-Generate a VAPID key pair once in Groly's container console, or in a Node.js
-environment with `web-push` installed:
-
-```sh
-node -e "const wp=require('web-push'); const k=wp.generateVAPIDKeys(); console.log(JSON.stringify(k,null,2))"
+```
+┌─────────────────────────────────────────────────────────────┐
+│                       Client (PWA)                          │
+│  SvelteKit 3.1 (Svelte 5 Runes) + Tailwind CSS v4           │
+│  IndexedDB (Dexie.js) + Multi-Tab Web Locks Synchronization │
+└──────────────────────────────▲──────────────────────────────┘
+                               │ HTTPS (REST / SSE / WebPush)
+┌──────────────────────────────▼──────────────────────────────┐
+│                    Server (Node.js 24)                      │
+│  SvelteKit Node Adapter + Server-Sent Events Engine         │
+│  Custom Scrypt Authentication + Session Store               │
+└──────────────────────────────▲──────────────────────────────┘
+                               │ better-sqlite3 + WAL Mode
+┌──────────────────────────────▼──────────────────────────────┐
+│                  Database Engine (SQLite)                   │
+│  Drizzle ORM + Idempotent Incremental Migrations            │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-Add to your environment:
+| Component | Technology | Role |
+| :--- | :--- | :--- |
+| **Frontend Framework** | SvelteKit 3.1 & Svelte 5 | Strict Runes reactivity (`$state`, `$derived`, `$props`, `$effect`). |
+| **Styling** | Tailwind CSS v4 (`@tailwindcss/vite`) | Modern, lightweight, atomic styling. |
+| **Icons** | `@lucide/svelte` | Clean, accessible icon system. |
+| **Client Storage** | Dexie.js (IndexedDB) | Offline persistence and FIFO mutation queue. |
+| **Concurrency Lock** | Web Locks API | Inter-tab exclusion to serialize queue draining. |
+| **Barcode Recognition** | BarcodeDetector API + ZBar WASM | Dual-layer hardware-accelerated barcode decoding. |
+| **Server Engine** | Node.js `>=24` (Alpine base) | High-performance ESM backend. |
+| **Database** | SQLite via `better-sqlite3` | Zero-latency embedded transactional storage. |
+| **ORM & Migrations** | Drizzle ORM (`drizzle-orm`) | Type-safe queries and schema definition. |
+| **Real-time Sync** | Server-Sent Events (SSE) | Push-based multi-user list synchronization. |
+| **Push Notifications** | Web Push API (`web-push`) | Background reminders and sharing updates. |
+| **Localization** | Paraglide JS | Compile-time internationalization. |
 
-```yaml
-environment:
-  - VAPID_PUBLIC_KEY=<publicKey>
-  - VAPID_PRIVATE_KEY=<privateKey>
-  - PUBLIC_VAPID_PUBLIC_KEY=<same publicKey>
-  - VAPID_SUBJECT=https://your-domain.com
+---
+
+## Local Development
+
+### Prerequisites
+
+- **Node.js:** `>=24.0.0 <25.0.0`
+- **npm:** `>=10.0.0`
+- C++ build tools (required by `better-sqlite3` compilation if prebuilt binaries are unavailable).
+
+### Setup
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/peterthepeter/groly.git larva
+cd larva
+
+# 2. Install dependencies (deterministic lockfile)
+npm ci
+
+# 3. Compile i18n catalogs and sync SvelteKit types
+npm run prepare
+
+# 4. Start the Vite development server
+npm run dev
 ```
 
-**Important:**
+Navigate to `http://localhost:5173`.
 
-- `VAPID_PUBLIC_KEY` and `PUBLIC_VAPID_PUBLIC_KEY` must be the **same value**.
-- `VAPID_SUBJECT` must be a real `https://` URL or `mailto:` address — a `.local` domain will be rejected by Apple's push service.
-- Generate the keys **once** and keep them. If the keys change, all existing subscriptions become invalid and users need to re-subscribe in Settings.
+### Quality & Verification Pipeline
 
-</details>
+Larva enforces strict zero-warning compilation and comprehensive testing:
 
-## Admin Password Recovery
+```bash
+# Type check and Svelte diagnostic validation
+npm run check
 
-Reset a forgotten administrator password through the container configuration.
+# Execute unit and integration tests (Vitest)
+npm run test
 
-<details>
-<summary><strong>Show password recovery steps</strong></summary>
+# Validate vendor dependency integrity & migration generator
+npm run test:dependencies
 
-Forgot your admin password? Since Groly is self-hosted and has no email server, recovery is done through the container environment:
+# Verify production build with zero Rollup/Vite warnings
+npm run build
 
-1. **Set the variable** `ADMIN_PASSWORD_RESET` in your container template to a new password (any string — it will become the new admin password).
-2. Make sure `ADMIN_USERNAME` is still set to the username of the admin you want to reset (default `admin`).
-3. **Restart the container.** On startup, Groly will reset that user's password and invalidate all their existing sessions. You will see a warning in the container logs.
-4. **Log in** with the new password.
-5. **Delete `ADMIN_PASSWORD_RESET`** from your container template. As long as it stays set, the password will be re-applied on every container restart.
+# Run end-to-end browser tests (Playwright)
+npm run test:browser
+```
 
-This works only for the user named in `ADMIN_USERNAME` (the original admin). For any other admin or regular user who is locked out, log in as the original admin and use the "Reset password" button in the user management UI — it generates a fresh invite link you can send them.
-
-</details>
+---
 
 ## Deployment
 
-The published image currently supports **Linux on Intel/AMD (`amd64`)**. ARM devices are not supported.
+### Docker Compose
 
-| System | Guide | Configuration | Validation status |
-| --- | --- | --- | --- |
-| Docker Compose | [General setup](docs/docker/README.md) | [Compose file](docker-compose.yml) | General deployment path; see [published release verification](https://github.com/peterthepeter/groly/releases/tag/v1.0.0) |
-| Unraid | [Community Applications setup](docs/unraid/README.md) | [Unraid template](unraid/groly.xml) | Existing integration; not revalidated here |
-| Synology DSM | [Container Manager guide](docs/synology/README.md) | [Compose file](docs/synology/docker-compose.yml) · [Environment example](docs/synology/.env.example) | YAML syntax checked; NAS test pending |
-| TrueNAS (Docker-based Apps) | [Custom App guide](docs/truenas/README.md) | [Compose file](docs/truenas/docker-compose.yml) | YAML syntax checked; NAS test pending |
-| QNAP | [Container Station guide](docs/qnap/README.md) | [Compose file](docs/qnap/docker-compose.yml) | YAML syntax checked; NAS test pending |
-| Portainer (Docker Standalone) | [Stack guide](docs/portainer/README.md) | [Compose file](docs/portainer/docker-compose.yml) | YAML syntax checked; Portainer test pending |
+The standard production deployment runs through Docker Compose:
 
-The platform guides cover data storage, HTTPS, updates, and backups. A syntax check does not confirm successful deployment on a platform; each guide states its remaining validation requirements.
+```yaml
+services:
+  larva:
+    image: ghcr.io/peterthepeter/groly:latest
+    container_name: larva
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - larva-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - ORIGIN=https://larva.example.com
+      - DATABASE_URL=/app/data/groly.db
+      - BODY_SIZE_LIMIT=15M
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=ChangeMeImmediately123!
+      # Optional: Web Push Configuration
+      - VAPID_PUBLIC_KEY=
+      - VAPID_PRIVATE_KEY=
+      - PUBLIC_VAPID_PUBLIC_KEY=
+      - VAPID_SUBJECT=mailto:admin@example.com
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
-## Database Maintenance
+volumes:
+  larva-data:
+```
 
-Groly performs automatic cleanup daily — no manual intervention required.
+Launch with:
 
-<details>
-<summary><strong>Show data retention details</strong></summary>
+```bash
+docker compose up -d
+```
 
-| Data | Cleanup rule |
-|------|-------------|
-| Checked-off items | Deleted after 60 days |
-| Item suggestions | Deleted after 6 months without use |
-| Barcode cache | Deleted after 6 months without a lookup |
-| Expired sessions | Deleted daily |
-| Stale push subscriptions | Removed automatically on failed delivery (HTTP 410/404) |
+---
 
-Active data (lists, unchecked items, recipes, supplements, list members) is only removed by user action. For a typical self-hosted instance, the SQLite database stays well under 100 MB indefinitely.
+### Environment Variables
 
-</details>
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `NODE_ENV` | `production` | Node runtime environment. |
+| `PORT` | `3000` | Internal HTTP port. |
+| `ORIGIN` | *Required in Prod* | Canonical public URL (e.g., `https://larva.yourdomain.com`). |
+| `DATABASE_URL` | `/app/data/groly.db` | Path to the SQLite database file on disk. |
+| `BODY_SIZE_LIMIT` | `15M` | Maximum allowed payload size for uploads and recipe imports. |
+| `ADMIN_USERNAME` | `admin` | Username for the primary instance administrator. |
+| `ADMIN_PASSWORD` | *Empty* | Password set on initial bootstrap (ignored once DB exists). |
+| `ADMIN_PASSWORD_RESET`| *Empty* | Set temporarily to force an admin password reset on restart. |
+| `VAPID_PUBLIC_KEY` | *Empty* | Public VAPID key for Web Push. |
+| `PUBLIC_VAPID_PUBLIC_KEY` | *Empty* | Must match `VAPID_PUBLIC_KEY` for client consumption. |
+| `VAPID_PRIVATE_KEY` | *Empty* | Private VAPID key for backend notification signing. |
+| `VAPID_SUBJECT` | *Empty* | Contact URI (`mailto:` or `https://`) required by Apple/Google push servers. |
 
-## Tech Stack
+---
 
-Groly uses SvelteKit, SQLite, and Docker, with an installable progressive web app.
+### HTTPS Requirement
 
-<details>
-<summary><strong>Show technical stack</strong></summary>
+**HTTPS is mandatory** for modern browser features and security guarantees:
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | SvelteKit (TypeScript, Svelte 5 Runes) |
-| Database | SQLite via better-sqlite3 + Drizzle ORM |
-| Auth | Custom (scrypt + sessions, 30-day expiry) |
-| Real-time | Server-Sent Events (SSE) |
-| Offline | Dexie.js (IndexedDB) + mutation queue |
-| Push | Web Push API + VAPID (web-push) |
-| Barcode | BarcodeDetector API + ZBar WASM (@undecaf/zbar-wasm) |
-| PWA | vite-plugin-pwa + Workbox |
-| CSS | Tailwind CSS v4 |
-| i18n | Paraglide-SvelteKit |
-| Deployment | Docker (Node.js adapter), linux/amd64 |
+| Capability | Requirement Reason |
+| :--- | :--- |
+| **Offline Cache** | Service Workers will not register on insecure origins. |
+| **PWA Installation** | Mobile browsers enforce HTTPS for "Add to Home Screen". |
+| **Push Notifications** | The Web Push API requires secure contexts. |
+| **Barcode Scanner** | Camera access (`getUserMedia`) is restricted to HTTPS. |
+| **Session Cookies** | Session cookies set the `Secure` flag in production. |
+| **Location Tracking** | Geolocation APIs are disabled over plain HTTP. |
 
-</details>
+#### Obtaining HTTPS
 
-## Support
+- **Tailscale (Easiest):** Enable HTTPS in the Tailscale Admin Console for automated Let's Encrypt certificates without opening ports.
+- **Cloudflare Tunnel:** Zero-port tunnel providing managed HTTPS termination.
+- **Reverse Proxy:** Terminate SSL with **Caddy**, **Nginx Proxy Manager**, or **Traefik**.
 
-Groly is free, open, and built in my spare time. If it's useful to you and you'd like to say thanks, you can buy me a coffee — entirely voluntary, with nothing expected in return.
+---
 
-[![Support Groly on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/groly)
+### Push Notifications (Web Push)
+
+To enable push notifications for list updates and supplement reminders:
+
+1. Generate a valid VAPID keypair:
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+2. Assign the output keys to `VAPID_PUBLIC_KEY`, `PUBLIC_VAPID_PUBLIC_KEY`, and `VAPID_PRIVATE_KEY` in your environment.
+3. Configure `VAPID_SUBJECT` with your administrative email address.
+
+---
+
+### Admin Password Recovery
+
+If the administrator password is lost:
+
+1. Add `ADMIN_PASSWORD_RESET=YourNewTemporaryPassword123!` to the container environment.
+2. Restart the container. Larva resets the admin account password on boot and invalidates existing sessions.
+3. Log in with the new credentials and remove the environment variable from your configuration.
+
+---
+
+## User Management & Security
+
+Larva operates under a **private invitation model**:
+- There is **no public registration**.
+- Administrators create users through the web interface (*Menu → Users → Add User*).
+- An invitation link valid for **48 hours** is generated for the new user to securely set their password upon first access.
+- Passwords are salted and hashed using **scrypt** with memory-hard parameters.
+
+---
+
+## Automated Database Maintenance
+
+Larva executes an automated daily housekeeping routine at midnight to keep SQLite storage compact:
+
+- **Checked Items:** Automatically removed after **60 days**.
+- **Item Suggestions:** Suggestion index purged after **6 months** of inactivity.
+- **Barcode Cache:** Product lookup cache pruned after **6 months** without access.
+- **Session Tokens:** Expired authentication sessions purged daily.
+- **Stale Push Subscriptions:** Dead endpoints returning HTTP 404/410 are automatically deregistered.
+
+---
+
+## License
+
+This project is open-source software licensed under the MIT License.

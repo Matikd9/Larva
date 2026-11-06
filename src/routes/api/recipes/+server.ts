@@ -54,19 +54,33 @@ export const POST: RequestHandler = async (event) => {
 	if (error) return error;
 
 	try {
+		const body = await event.request.json();
+		const { id: clientId, title, description, imageUrl, sourceUrl, servings, prepTime, cookTime, ingredients, steps } = body;
+
+
+		if (typeof clientId === 'string' && clientId.trim().length > 0 && clientId.length <= 64) {
+			const existing = db.select({ id: recipes.id }).from(recipes)
+				.where(and(eq(recipes.id, clientId.trim()), eq(recipes.userId, user!.id)))
+				.get();
+			if (existing) return Response.json({ id: existing.id, deduped: true }, { status: 200 });
+		}
+
 		const count = db.select().from(recipes).where(eq(recipes.userId, user!.id)).all().length;
 		if (count >= RECIPE_LIMIT) {
 			return Response.json({ error: `Maximale Anzahl von ${RECIPE_LIMIT} Rezepten erreicht`, code: 'limit_reached', limit: RECIPE_LIMIT }, { status: 400 });
 		}
 
-		const body = await event.request.json();
-		const { title, description, imageUrl, sourceUrl, servings, prepTime, cookTime, ingredients, steps } = body;
+
+
 
 		if (!title?.trim()) return Response.json({ error: 'Titel erforderlich' }, { status: 400 });
 
 		const now = Date.now();
-		const recipeId = randomUUID();
+		const recipeId = (typeof clientId === 'string' && clientId.trim().length > 0 && clientId.length <= 64)
+			? clientId.trim()
+			: randomUUID();
 
+		db.transaction(() => {
 		db.insert(recipes).values({
 			id: recipeId,
 			userId: user!.id,
@@ -108,6 +122,8 @@ export const POST: RequestHandler = async (event) => {
 				}).run();
 			}
 		}
+
+		});
 
 		return Response.json({ id: recipeId }, { status: 201 });
 	} catch (e) {

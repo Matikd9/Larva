@@ -347,7 +347,7 @@ async function confirmFavoriteWrite(mutation: PendingMutation, userId: string) {
 	});
 }
 
-async function runPendingMutations(userId: string) {
+async function runPendingMutations(userId: string): Promise<boolean> {
 	await accountReady;
 	const pending = (await offlineDb.pendingMutations.orderBy('id').toArray())
 		.filter(mutation => mutation.userId === userId);
@@ -424,6 +424,12 @@ async function runPendingMutations(userId: string) {
 			if (!mutationManagesItsOwnQueueEntry) await offlineDb.pendingMutations.delete(mutation.id!);
 		} catch (e: unknown) {
 			const status = (e as { status?: number })?.status;
+			if (status === 401) {
+				// Sesión revocada o expirada: suspender drain sin borrar la mutación
+				const remaining = await countActivePendingMutations();
+				networkStore.setPending(remaining);
+				return false;
+			}
 			const isCategoryPreferenceMutation = mutation.type === 'set_category_preference' || mutation.type === 'delete_category_preference' || mutation.type === 'set_favorite' || mutation.type === 'delete_favorite';
 			const isSettingsMutation = mutation.type === 'update_user_settings';
 			if (status === 404 || status === 409 || status === 403 || (
@@ -457,6 +463,7 @@ async function runPendingMutations(userId: string) {
 	}
 	const remaining = await countActivePendingMutations();
 	networkStore.setPending(remaining);
+	return true;
 }
 
 // Öffentliche Variante für Aufrufer außerhalb (resumeOrchestrator).
@@ -466,14 +473,31 @@ export function drainPendingMutations(): Promise<void> {
 		drainAgain = true;
 		return drainPromise;
 	}
-	drainPromise = (async () => {
+	const executeDrainLoop = async () => {
 		do {
 			drainAgain = false;
 			const userId: string | null = activeUserId;
 			if (!userId) return;
 			drainingUserId = userId;
-			await runPendingMutations(userId);
+			const shouldContinue = await runPendingMutations(userId);
+			if (!shouldContinue) {
+				drainAgain = false;
+				break;
+			}
 		} while (activeUserId !== null && (drainAgain || activeUserId !== drainingUserId));
+	};
+
+	drainPromise = (async () => {
+		const lockName = `groly_drain_${activeUserId}`;
+		if (typeof navigator !== 'undefined' && 'locks' in navigator && typeof navigator.locks?.request === 'function') {
+			try {
+				await navigator.locks.request(lockName, executeDrainLoop);
+			} catch {
+				await executeDrainLoop();
+			}
+		} else {
+			await executeDrainLoop();
+		}
 	})().finally(() => {
 		drainPromise = null;
 		drainingUserId = null;
@@ -711,7 +735,7 @@ export async function logWaterOffline(args: { amountMl: number; loggedAt: number
 	await enqueueLog(
 		'create_water_log',
 		{ amountMl: args.amountMl, loggedAt: args.loggedAt, clientLogId: args.clientLogId },
-		(userId) => offlineDb.waterLogs.put({ cacheUserId: userId, id: args.clientLogId, amountMl: args.amountMl, loggedAt: args.loggedAt, clientLogId: args.clientLogId })
+		(userId) => offlineDb.waterLogs.put({ cacheUserId: userId, id: args.clientLogId, amountMl: args.amountMl, loggedAt: args.loggedAt, clientLogId: args.clientLogId, localConfirmedAt: Date.now() })
 	);
 }
 
@@ -719,7 +743,7 @@ export async function logCaffeineOffline(args: { drinkName: string; amountMl: nu
 	await enqueueLog(
 		'create_caffeine_log',
 		{ drinkName: args.drinkName, amountMl: args.amountMl, caffeineMg: args.caffeineMg, loggedAt: args.loggedAt, clientLogId: args.clientLogId },
-		(userId) => offlineDb.caffeineLogs.put({ cacheUserId: userId, id: args.clientLogId, drinkName: args.drinkName, amountMl: args.amountMl, caffeineMg: args.caffeineMg, loggedAt: args.loggedAt, clientLogId: args.clientLogId })
+		(userId) => offlineDb.caffeineLogs.put({ cacheUserId: userId, id: args.clientLogId, drinkName: args.drinkName, amountMl: args.amountMl, caffeineMg: args.caffeineMg, loggedAt: args.loggedAt, clientLogId: args.clientLogId, localConfirmedAt: Date.now() })
 	);
 }
 
@@ -727,7 +751,7 @@ export async function logMeditationOffline(args: { durationSeconds: number; logg
 	await enqueueLog(
 		'create_meditation_log',
 		{ durationSeconds: args.durationSeconds, loggedAt: args.loggedAt, clientLogId: args.clientLogId },
-		(userId) => offlineDb.meditationLogs.put({ cacheUserId: userId, id: args.clientLogId, durationSeconds: args.durationSeconds, loggedAt: args.loggedAt, clientLogId: args.clientLogId })
+		(userId) => offlineDb.meditationLogs.put({ cacheUserId: userId, id: args.clientLogId, durationSeconds: args.durationSeconds, loggedAt: args.loggedAt, clientLogId: args.clientLogId, localConfirmedAt: Date.now() })
 	);
 }
 
@@ -938,11 +962,7 @@ export async function refreshUserSettings(
 			revision: seedRevision,
 			updatedAt: Date.now()
 		});
-	}
-
-	if (activeUserId === userId) await drainPendingMutations();
-	if (activeUserId !== userId) {
-		return (await offlineDb.userSettings.get(userId)) ?? {
+		return {
 			userId,
 			settings: seededSettings as Record<string, unknown>,
 			revision: seedRevision,
@@ -984,12 +1004,23 @@ export async function refreshUserSettings(
 export async function cacheListsData(lists: OfflineList[], userId = activeUserId, replace = false) {
 	await accountReady;
 	if (!userId) return;
-	await offlineDb.transaction('rw', offlineDb.lists, offlineDb.accountLists, offlineDb.accountItems, async () => {
+	await offlineDb.transaction('rw', offlineDb.lists, offlineDb.accountLists, offlineDb.accountItems, offlineDb.pendingMutations, async () => {
 		if (replace) {
 			const ids = new Set(lists.map(row => row.id));
+			const pending = await offlineDb.pendingMutations.toArray();
+			const activePending = pending.filter(m => m.userId === userId || (!m.userId && userId === activeUserId));
+			const protectedListIds = new Set<string>();
+			for (const mutation of activePending) {
+				if (mutation.type === 'create_list' || mutation.type === 'update_list') {
+					if (typeof mutation.payload.id === 'string') protectedListIds.add(mutation.payload.id);
+					if (typeof mutation.payload.clientId === 'string') protectedListIds.add(mutation.payload.clientId);
+				} else if (mutation.type === 'create_item' || mutation.type === 'update_item' || mutation.type === 'delete_item') {
+					if (typeof mutation.payload.listId === 'string') protectedListIds.add(mutation.payload.listId);
+				}
+			}
 			const old = await offlineDb.accountLists.where('cacheUserId').equals(userId).toArray();
 			for (const row of old) {
-				if (ids.has(row.id)) continue;
+				if (ids.has(row.id) || protectedListIds.has(row.id)) continue;
 				await offlineDb.accountLists.delete([userId, row.id]);
 				await offlineDb.accountItems.where('[cacheUserId+listId]').equals([userId, row.id]).delete();
 			}
@@ -1187,9 +1218,36 @@ export async function getOfflineRecipeDetail(id: string): Promise<OfflineRecipeD
 
 // ── Wasser-Cache ───────────────────────────────────────────────────────────────
 
-export async function cacheWaterLogs(logs: OfflineWaterLog[], userId = activeUserId) {
+export async function cacheWaterLogs(
+	logs: OfflineWaterLog[],
+	requestStartedAtOrUserId: number | string | null = 0,
+	userId: string | null = activeUserId
+): Promise<OfflineWaterLog[]> {
+	const requestStartedAt = typeof requestStartedAtOrUserId === 'number' ? requestStartedAtOrUserId : 0;
+	const effectiveUserId = typeof requestStartedAtOrUserId === 'string' ? requestStartedAtOrUserId : userId;
+	if (!effectiveUserId) return logs;
 	await accountReady;
-	if (userId) await offlineDb.waterLogs.bulkPut(logs.map(row => ({ ...row, cacheUserId: userId })));
+	const d = new Date();
+	d.setHours(0, 0, 0, 0);
+	const from = d.getTime();
+	const next = new Date(d);
+	next.setDate(next.getDate() + 1);
+	const to = next.getTime() - 1;
+	return offlineDb.transaction('rw', offlineDb.waterLogs, async () => {
+		const localRows = (await offlineDb.waterLogs.where('loggedAt').between(from, to, true, true).toArray())
+			.filter(row => row.cacheUserId === effectiveUserId || row.userId === effectiveUserId);
+		const serverClientIds = new Set(logs.map(log => log.clientLogId).filter((id): id is string => typeof id === 'string'));
+		const preserved = localRows.filter(row => {
+			if (!row.clientLogId || serverClientIds.has(row.clientLogId)) return false;
+			const localConfirmedAt = row.localConfirmedAt ?? 0;
+			return row.id === row.clientLogId || (localConfirmedAt > 0 && localConfirmedAt >= requestStartedAt);
+		});
+		if (localRows.length > 0) await offlineDb.waterLogs.bulkDelete(localRows.map(row => row.id));
+		const serverRows = logs.map(log => ({ ...log, cacheUserId: effectiveUserId }));
+		const merged = [...serverRows, ...preserved];
+		if (merged.length > 0) await offlineDb.waterLogs.bulkPut(merged);
+		return merged.sort((a, b) => a.loggedAt - b.loggedAt);
+	});
 }
 
 export async function getOfflineWaterLogsToday(): Promise<OfflineWaterLog[]> {
@@ -1199,9 +1257,36 @@ export async function getOfflineWaterLogsToday(): Promise<OfflineWaterLog[]> {
 
 // ── Koffein-Cache ──────────────────────────────────────────────────────────────
 
-export async function cacheCaffeineLogs(logs: OfflineCaffeineLog[], userId = activeUserId) {
+export async function cacheCaffeineLogs(
+	logs: OfflineCaffeineLog[],
+	requestStartedAtOrUserId: number | string | null = 0,
+	userId: string | null = activeUserId
+): Promise<OfflineCaffeineLog[]> {
+	const requestStartedAt = typeof requestStartedAtOrUserId === 'number' ? requestStartedAtOrUserId : 0;
+	const effectiveUserId = typeof requestStartedAtOrUserId === 'string' ? requestStartedAtOrUserId : userId;
+	if (!effectiveUserId) return logs;
 	await accountReady;
-	if (userId) await offlineDb.caffeineLogs.bulkPut(logs.map(row => ({ ...row, cacheUserId: userId })));
+	const d = new Date();
+	d.setHours(0, 0, 0, 0);
+	const from = d.getTime();
+	const next = new Date(d);
+	next.setDate(next.getDate() + 1);
+	const to = next.getTime() - 1;
+	return offlineDb.transaction('rw', offlineDb.caffeineLogs, async () => {
+		const localRows = (await offlineDb.caffeineLogs.where('loggedAt').between(from, to, true, true).toArray())
+			.filter(row => row.cacheUserId === effectiveUserId || row.userId === effectiveUserId);
+		const serverClientIds = new Set(logs.map(log => log.clientLogId).filter((id): id is string => typeof id === 'string'));
+		const preserved = localRows.filter(row => {
+			if (!row.clientLogId || serverClientIds.has(row.clientLogId)) return false;
+			const localConfirmedAt = row.localConfirmedAt ?? 0;
+			return row.id === row.clientLogId || (localConfirmedAt > 0 && localConfirmedAt >= requestStartedAt);
+		});
+		if (localRows.length > 0) await offlineDb.caffeineLogs.bulkDelete(localRows.map(row => row.id));
+		const serverRows = logs.map(log => ({ ...log, cacheUserId: effectiveUserId }));
+		const merged = [...serverRows, ...preserved];
+		if (merged.length > 0) await offlineDb.caffeineLogs.bulkPut(merged);
+		return merged.sort((a, b) => a.loggedAt - b.loggedAt);
+	});
 }
 
 export async function getOfflineCaffeineLogsToday(): Promise<OfflineCaffeineLog[]> {
@@ -1222,9 +1307,36 @@ export async function getOfflineCaffeineDrinks(): Promise<OfflineCaffeineDrink[]
 
 // ── Meditation-Cache ───────────────────────────────────────────────────────────
 
-export async function cacheMeditationLogs(logs: OfflineMeditationLog[], userId = activeUserId) {
+export async function cacheMeditationLogs(
+	logs: OfflineMeditationLog[],
+	requestStartedAtOrUserId: number | string | null = 0,
+	userId: string | null = activeUserId
+): Promise<OfflineMeditationLog[]> {
+	const requestStartedAt = typeof requestStartedAtOrUserId === 'number' ? requestStartedAtOrUserId : 0;
+	const effectiveUserId = typeof requestStartedAtOrUserId === 'string' ? requestStartedAtOrUserId : userId;
+	if (!effectiveUserId) return logs;
 	await accountReady;
-	if (userId) await offlineDb.meditationLogs.bulkPut(logs.map(row => ({ ...row, cacheUserId: userId })));
+	const d = new Date();
+	d.setHours(0, 0, 0, 0);
+	const from = d.getTime();
+	const next = new Date(d);
+	next.setDate(next.getDate() + 1);
+	const to = next.getTime() - 1;
+	return offlineDb.transaction('rw', offlineDb.meditationLogs, async () => {
+		const localRows = (await offlineDb.meditationLogs.where('loggedAt').between(from, to, true, true).toArray())
+			.filter(row => row.cacheUserId === effectiveUserId || row.userId === effectiveUserId);
+		const serverClientIds = new Set(logs.map(log => log.clientLogId).filter((id): id is string => typeof id === 'string'));
+		const preserved = localRows.filter(row => {
+			if (!row.clientLogId || serverClientIds.has(row.clientLogId)) return false;
+			const localConfirmedAt = row.localConfirmedAt ?? 0;
+			return row.id === row.clientLogId || (localConfirmedAt > 0 && localConfirmedAt >= requestStartedAt);
+		});
+		if (localRows.length > 0) await offlineDb.meditationLogs.bulkDelete(localRows.map(row => row.id));
+		const serverRows = logs.map(log => ({ ...log, cacheUserId: effectiveUserId }));
+		const merged = [...serverRows, ...preserved];
+		if (merged.length > 0) await offlineDb.meditationLogs.bulkPut(merged);
+		return merged.sort((a, b) => a.loggedAt - b.loggedAt);
+	});
 }
 
 export async function getOfflineMeditationLogsToday(): Promise<OfflineMeditationLog[]> {
@@ -1238,9 +1350,26 @@ export async function getOfflineMeditationLogsRange(from: number, to: number): P
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 
+async function adoptOrphanedMutations(userId: string): Promise<void> {
+	await offlineDb.transaction('rw', offlineDb.pendingMutations, async () => {
+		const orphans = (await offlineDb.pendingMutations.toArray()).filter(m => !m.userId);
+		for (const orphan of orphans) {
+			if (orphan.id !== undefined) {
+				await offlineDb.pendingMutations.update(orphan.id, { userId });
+			}
+		}
+	});
+}
+
 export function initSync(userId: string | null = null) {
 	activeUserId = userId;
 	setApiUserId(userId);
+	if (userId) {
+		void adoptOrphanedMutations(userId)
+			.then(() => countActivePendingMutations())
+			.then(count => networkStore.setPending(count))
+			.catch(() => {});
+	}
 	if (!accountMigrationStarted && typeof localStorage !== 'undefined') {
 		accountMigrationStarted = true;
 		let legacyOwner: string | null = null;
