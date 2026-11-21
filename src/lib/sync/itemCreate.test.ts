@@ -98,6 +98,23 @@ describe('local-first item creation', () => {
 		expect(await offlineDb.pendingMutations.count()).toBe(0);
 	});
 
+	it('drops a mutation the server rejects as invalid so later mutations still sync', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+		initSync('user-1');
+		await queue('item-1', 'Invalid');
+		await queue('item-2', 'Brot');
+		await vi.waitFor(async () => expect(await offlineDb.pendingMutations.count()).toBe(2));
+
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(jsonResponse({ error: 'Ungültige Kategorie' }, 400))
+			.mockResolvedValue(jsonResponse({ id: 'item-2', updatedAt: 200 }));
+		vi.stubGlobal('fetch', fetchMock);
+		await drainPendingMutations();
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(await offlineDb.pendingMutations.count()).toBe(0);
+	});
+
 	it('preserves legacy queued create-then-check intent after the server assigns a newer revision', async () => {
 		await queue('item-1', 'Milch');
 		await offlineDb.pendingMutations.add({ userId: 'user-1', type: 'update_item', payload: { id: 'item-1', isChecked: true, clientUpdatedAt: 100 }, createdAt: Date.now() });

@@ -432,9 +432,8 @@ async function runPendingMutations(userId: string): Promise<boolean> {
 			}
 			const isCategoryPreferenceMutation = mutation.type === 'set_category_preference' || mutation.type === 'delete_category_preference' || mutation.type === 'set_favorite' || mutation.type === 'delete_favorite';
 			const isSettingsMutation = mutation.type === 'update_user_settings';
-			if (status === 404 || status === 409 || status === 403 || (
-				status === 400 && (isCategoryPreferenceMutation || isSettingsMutation)
-			)) {
+			// A 400 is a real validation error from the app: retrying it would block the queue forever.
+			if (status === 400 || status === 404 || status === 409 || status === 403) {
 				// Diese Endpunkte liefern selbst weder 403, 404 noch 409. Solche Antworten
 				// stammen daher typischerweise von einem kalten Proxy/WAF und dürfen eine
 				// persönliche Lernregel nicht vernichten. Nur echte 400-Validierungsfehler
@@ -449,12 +448,12 @@ async function runPendingMutations(userId: string): Promise<boolean> {
 				// Nutzerdaten löschen. Stattdessen behalten und beim nächsten Drain
 				// (online / visibilitychange / Öffnen) erneut versuchen; dank clientLogId
 				// entstehen dabei keine Duplikate.
-				if (
+				if (status !== 400 && (
 					mutation.type === 'create_supplement_log' ||
 					mutation.type === 'create_water_log' ||
 					mutation.type === 'create_caffeine_log' ||
 					mutation.type === 'create_meditation_log'
-				) continue; // in der Queue lassen, nächste Mutation versuchen
+				)) continue; // in der Queue lassen, nächste Mutation versuchen
 				await offlineDb.pendingMutations.delete(mutation.id!);
 				continue;
 			}

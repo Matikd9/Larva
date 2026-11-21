@@ -1,0 +1,1 @@
+ALTER TABLE `barcode_cache` ADD `user_edited_at` integer;

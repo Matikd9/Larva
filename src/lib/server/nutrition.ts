@@ -3,7 +3,7 @@
 import { db, sqlite } from '#lib/db';
 import { barcodeCache } from '#lib/db/schema';
 import { eq, and, or, like, sql, desc } from 'drizzle-orm';
-import { type EssentialMicros, parseMicrosJson, stringifyMicrosJson } from '#lib/micronutrients';
+import { type EssentialMicros, parseMicrosJson, stringifyMicrosJson, scaleMicros } from '#lib/micronutrients';
 
 const USER_AGENT = 'Groly/0.7 (self-hosted grocery list app)';
 
@@ -330,6 +330,7 @@ function persistCache(data: ProductData, raw: OffProduct) {
 			nutriments_json = excluded.nutriments_json,
 			fetched_at = excluded.fetched_at,
 			last_seen_at = excluded.last_seen_at
+		WHERE barcode_cache.user_edited_at IS NULL
 	`).run({
 		barcode: data.barcode,
 		name: data.name,
@@ -492,6 +493,11 @@ export async function searchOff(query: string, limit = 15, signal?: AbortSignal)
 export function effectiveGrams(amount: number, unit: 'g' | 'ml' | 'piece' | 'portion', gramsPerPiece: number | null | undefined): number {
 	if (unit === 'piece' || unit === 'portion') return amount * (gramsPerPiece ?? 0);
 	return amount; // g und ml behandeln wir näherungsweise gleich
+}
+
+// meal_components.micros_json holds component totals, but clients send micros per 100 g back on save.
+export function componentMicrosPer100(microsJson: string | null, grams: number): EssentialMicros {
+	return grams > 0 ? scaleMicros(parseMicrosJson(microsJson), 100 / grams) : {};
 }
 
 export type Per100 = {

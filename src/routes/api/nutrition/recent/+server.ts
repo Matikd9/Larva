@@ -3,7 +3,7 @@ import { authGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
 import { meals, mealComponents, genericFoods } from '#lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
-import { parseMicrosJson } from '#lib/micronutrients';
+import { componentMicrosPer100, effectiveGrams } from '#lib/server/nutrition';
 
 export const GET: RequestHandler = async (event) => {
 	const { error, user } = authGuard(event);
@@ -72,7 +72,7 @@ export const GET: RequestHandler = async (event) => {
 			fiberPer100: r.fiberPer100,
 			saltPer100: r.saltPer100,
 			kcal: r.kcal,
-			micros: parseMicrosJson(r.microsJson),
+			micros: componentMicrosPer100(r.microsJson, effectiveGrams(r.amount, r.unit, r.gramsPerPiece)),
 			lastUsedDate: r.date,
 			lastUsedTime: r.time
 		});

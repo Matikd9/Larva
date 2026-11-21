@@ -2,11 +2,11 @@
 import type { RequestHandler } from './$types';
 import { authGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
-import { meals, mealComponents, caffeineDrinks, caffeineLogs, barcodeCache } from '#lib/db/schema';
-import { and, eq, asc, gte, lte } from 'drizzle-orm';
+import { meals, mealComponents, caffeineDrinks, caffeineLogs } from '#lib/db/schema';
+import { and, eq, asc, gte, lte, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { effectiveGrams, computeTotals, mealCaffeineLogPrefix } from '#lib/server/nutrition';
-import { type EssentialMicros, parseMicrosJson, stringifyMicrosJson, scaleMicros } from '#lib/micronutrients';
+import { effectiveGrams, computeTotals, mealCaffeineLogPrefix, componentMicrosPer100 } from '#lib/server/nutrition';
+import { type EssentialMicros, stringifyMicrosJson, scaleMicros } from '#lib/micronutrients';
 
 type InputComponent = {
 	productBarcode?: string | null;
@@ -65,10 +65,11 @@ export const GET: RequestHandler = async (event) => {
 	if (rows.length === 0) return Response.json({ meals: [] });
 
 	const mealIds = rows.map((m) => m.id);
-	const allComponents = db.select().from(mealComponents).orderBy(asc(mealComponents.sortOrder)).all();
+	const allComponents = db.select().from(mealComponents)
+		.where(inArray(mealComponents.mealId, mealIds))
+		.orderBy(asc(mealComponents.sortOrder)).all();
 	const byMeal = new Map<string, typeof allComponents>();
 	for (const c of allComponents) {
-		if (!mealIds.includes(c.mealId)) continue;
 		const arr = byMeal.get(c.mealId) ?? [];
 		arr.push(c);
 		byMeal.set(c.mealId, arr);
@@ -79,7 +80,7 @@ export const GET: RequestHandler = async (event) => {
 			...m,
 			components: (byMeal.get(m.id) ?? []).map((c) => ({
 				...c,
-				micros: parseMicrosJson(c.microsJson)
+				micros: componentMicrosPer100(c.microsJson, effectiveGrams(c.amount, c.unit, c.gramsPerPiece))
 			}))
 		}))
 	});
@@ -109,99 +110,90 @@ export const POST: RequestHandler = async (event) => {
 		const now = Date.now();
 		const mealId = randomUUID();
 
-		db.insert(meals).values({
-			id: mealId,
-			userId: user.id,
-			name: name.trim().slice(0, 60),
-			date,
-			time,
-			imageUrl: typeof imageUrl === 'string' ? imageUrl : null,
-			favoriteName: typeof favoriteName === 'string' && favoriteName.trim() ? favoriteName.trim().slice(0, 80) : null,
-			createdAt: now,
-			updatedAt: now
-		}).run();
-
-		for (let i = 0; i < comps.length; i++) {
-			const c = comps[i];
-			if (typeof c?.amount !== 'number' || !(c.amount > 0)) continue;
-			if (!['g', 'ml', 'piece', 'portion'].includes(c.unit)) continue;
-			if (typeof c.displayName !== 'string' || !c.displayName.trim()) continue;
-
-			const grams = effectiveGrams(c.amount, c.unit, c.gramsPerPiece);
-			const totals = computeTotals({
-				kcal: c.kcalPer100,
-				protein: c.proteinPer100,
-				fat: c.fatPer100,
-				carbs: c.carbsPer100,
-				sugar: c.sugarPer100,
-				fiber: c.fiberPer100,
-				salt: c.saltPer100
-			}, grams);
-
-			db.insert(mealComponents).values({
-				id: randomUUID(),
-				mealId,
-				sortOrder: i,
-				productBarcode: c.productBarcode ?? null,
-				genericFoodId: c.genericFoodId ?? null,
-				customName: c.customName ?? null,
-				displayName: c.displayName.trim().slice(0, 120),
-				imageUrl: c.imageUrl ?? null,
-				amount: c.amount,
-				unit: c.unit,
-				gramsPerPiece: c.gramsPerPiece ?? null,
-				kcalPer100: c.kcalPer100 ?? null,
-				proteinPer100: c.proteinPer100 ?? null,
-				fatPer100: c.fatPer100 ?? null,
-				carbsPer100: c.carbsPer100 ?? null,
-				sugarPer100: c.sugarPer100 ?? null,
-				fiberPer100: c.fiberPer100 ?? null,
-				saltPer100: c.saltPer100 ?? null,
-				kcal: totals.kcal,
-				protein: totals.protein,
-				fat: totals.fat,
-				carbs: totals.carbs,
-				sugar: totals.sugar,
-				fiber: totals.fiber,
-				salt: totals.salt,
-				microsJson: stringifyMicrosJson(scaleMicros(c.micros, grams / 100))
+		db.transaction(() => {
+			db.insert(meals).values({
+				id: mealId,
+				userId: user.id,
+				name: name.trim().slice(0, 60),
+				date,
+				time,
+				imageUrl: typeof imageUrl === 'string' ? imageUrl : null,
+				favoriteName: typeof favoriteName === 'string' && favoriteName.trim() ? favoriteName.trim().slice(0, 80) : null,
+				createdAt: now,
+				updatedAt: now
 			}).run();
 
-			if (c.productBarcode && typeof c.gramsPerPiece === 'number' && c.gramsPerPiece > 0) {
-				db.update(barcodeCache)
-					.set({
-						servingQuantity: c.gramsPerPiece,
-						servingSize: `${c.gramsPerPiece} g`,
-						lastSeenAt: now
-					})
-					.where(eq(barcodeCache.barcode, c.productBarcode))
-					.run();
-			}
-		}
+			for (let i = 0; i < comps.length; i++) {
+				const c = comps[i];
+				if (typeof c?.amount !== 'number' || !(c.amount > 0)) continue;
+				if (!['g', 'ml', 'piece', 'portion'].includes(c.unit)) continue;
+				if (typeof c.displayName !== 'string' || !c.displayName.trim()) continue;
 
-		// Koffein-Spiegel: Für jede verknüpfte Koffein-Getränk-Vorlage zusätzlich einen
-		// Koffein-Log anlegen (Nutrition → Koffein, eine Richtung). Menge + mg kommen
-		// autoritativ aus dem Getränk; clientLogId bindet den Log an die Mahlzeit.
-		const drinkIds = Array.isArray(caffeineDrinkIds)
-			? [...new Set(caffeineDrinkIds.filter((d): d is string => typeof d === 'string' && !!d))]
-			: [];
-		if (drinkIds.length > 0) {
-			const loggedAt = new Date(`${date}T${time}`).getTime() || now;
-			for (const drinkId of drinkIds) {
-				const drink = db.select().from(caffeineDrinks).where(eq(caffeineDrinks.id, drinkId)).get();
-				if (!drink) continue;
-				db.insert(caffeineLogs).values({
+				const grams = effectiveGrams(c.amount, c.unit, c.gramsPerPiece);
+				const totals = computeTotals({
+					kcal: c.kcalPer100,
+					protein: c.proteinPer100,
+					fat: c.fatPer100,
+					carbs: c.carbsPer100,
+					sugar: c.sugarPer100,
+					fiber: c.fiberPer100,
+					salt: c.saltPer100
+				}, grams);
+
+				db.insert(mealComponents).values({
 					id: randomUUID(),
-					userId: user.id,
-					drinkName: drink.name,
-					amountMl: drink.defaultMl,
-					caffeineMg: drink.caffeineMg,
-					loggedAt,
-					clientLogId: `${mealCaffeineLogPrefix(mealId)}${drinkId}`,
-					createdAt: now
+					mealId,
+					sortOrder: i,
+					productBarcode: c.productBarcode ?? null,
+					genericFoodId: c.genericFoodId ?? null,
+					customName: c.customName ?? null,
+					displayName: c.displayName.trim().slice(0, 120),
+					imageUrl: c.imageUrl ?? null,
+					amount: c.amount,
+					unit: c.unit,
+					gramsPerPiece: c.gramsPerPiece ?? null,
+					kcalPer100: c.kcalPer100 ?? null,
+					proteinPer100: c.proteinPer100 ?? null,
+					fatPer100: c.fatPer100 ?? null,
+					carbsPer100: c.carbsPer100 ?? null,
+					sugarPer100: c.sugarPer100 ?? null,
+					fiberPer100: c.fiberPer100 ?? null,
+					saltPer100: c.saltPer100 ?? null,
+					kcal: totals.kcal,
+					protein: totals.protein,
+					fat: totals.fat,
+					carbs: totals.carbs,
+					sugar: totals.sugar,
+					fiber: totals.fiber,
+					salt: totals.salt,
+					microsJson: stringifyMicrosJson(scaleMicros(c.micros, grams / 100))
 				}).run();
 			}
-		}
+
+			// Koffein-Spiegel: Für jede verknüpfte Koffein-Getränk-Vorlage zusätzlich einen
+			// Koffein-Log anlegen (Nutrition → Koffein, eine Richtung). Menge + mg kommen
+			// autoritativ aus dem Getränk; clientLogId bindet den Log an die Mahlzeit.
+			const drinkIds = Array.isArray(caffeineDrinkIds)
+				? [...new Set(caffeineDrinkIds.filter((d): d is string => typeof d === 'string' && !!d))]
+				: [];
+			if (drinkIds.length > 0) {
+				const loggedAt = new Date(`${date}T${time}`).getTime() || now;
+				for (const drinkId of drinkIds) {
+					const drink = db.select().from(caffeineDrinks).where(eq(caffeineDrinks.id, drinkId)).get();
+					if (!drink) continue;
+					db.insert(caffeineLogs).values({
+						id: randomUUID(),
+						userId: user.id,
+						drinkName: drink.name,
+						amountMl: drink.defaultMl,
+						caffeineMg: drink.caffeineMg,
+						loggedAt,
+						clientLogId: `${mealCaffeineLogPrefix(mealId)}${drinkId}`,
+						createdAt: now
+					}).run();
+				}
+			}
+		});
 
 		return Response.json({ id: mealId }, { status: 201 });
 	} catch (e) {

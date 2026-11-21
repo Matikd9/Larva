@@ -20,9 +20,11 @@
 		MINERALS_META,
 		VITAMINS_META,
 		addMicros,
+		scaleMicros,
 		computeRdaPercent,
 		formatMicroValue
 	} from '#lib/micronutrients';
+	import { effectiveGrams } from '#lib/nutritionUtils';
 
 	type Component = {
 		id: string;
@@ -155,7 +157,8 @@
 				t.fiber += c.fiber ?? 0;
 				t.salt += c.salt ?? 0;
 				if (c.micros) {
-					micros = addMicros(micros, c.micros);
+					// The API returns micros per 100 g; the day total needs the logged amount.
+					micros = addMicros(micros, scaleMicros(c.micros, effectiveGrams(c.amount, c.unit, c.gramsPerPiece) / 100));
 				}
 			}
 		}
@@ -249,7 +252,8 @@
 				carbsPer100: c.carbsPer100,
 				sugarPer100: c.sugarPer100,
 				fiberPer100: c.fiberPer100,
-				saltPer100: c.saltPer100
+				saltPer100: c.saltPer100,
+				micros: c.micros
 			}));
 
 			const todayMeal = meals.find((m) => getMealBlock(m.name) === blockKey);
@@ -269,7 +273,8 @@
 					carbsPer100: c.carbsPer100,
 					sugarPer100: c.sugarPer100,
 					fiberPer100: c.fiberPer100,
-					saltPer100: c.saltPer100
+					saltPer100: c.saltPer100,
+					micros: c.micros
 				}));
 				await fetch(`/api/nutrition/meals/${todayMeal.id}`, {
 					method: 'PATCH',

@@ -189,6 +189,7 @@ export const barcodeCache = sqliteTable('barcode_cache', {
 	ingredientsText: text('ingredients_text'),
 	nutrimentsJson: text('nutriments_json'), // komplettes OFF-Nutriment-Objekt als JSON (für zukünftige Mikronährstoffe)
 	fetchedAt: integer('fetched_at'), // wann zuletzt von OFF aktualisiert
+	userEditedAt: integer('user_edited_at'), // set by manual corrections; OFF refreshes and cleanup leave these rows alone
 	lastSeenAt: integer('last_seen_at').notNull()
 });
 

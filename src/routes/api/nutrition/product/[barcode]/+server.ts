@@ -97,6 +97,7 @@ export const PATCH: RequestHandler = async (event) => {
 				...(saltPer100 !== undefined ? { saltPer100 } : {}),
 				...(microsJson !== undefined ? { microsJson } : {}),
 				...(ingredientsText !== undefined ? { ingredientsText } : {}),
+				userEditedAt: now,
 				lastSeenAt: now
 			})
 			.where(eq(barcodeCache.barcode, code))
@@ -118,6 +119,7 @@ export const PATCH: RequestHandler = async (event) => {
 				saltPer100: saltPer100 ?? null,
 				microsJson: microsJson ?? null,
 				ingredientsText: ingredientsText ?? null,
+				userEditedAt: now,
 				lastSeenAt: now,
 				fetchedAt: now
 			})

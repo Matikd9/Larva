@@ -13,7 +13,6 @@ import {
 } from '#lib/db/schema';
 import { and, eq, gte, lte, sql } from 'drizzle-orm';
 import { sendPushToUser } from './pushNotifications';
-import { toLocalDateKey } from '#lib/dates';
 import { matchSupplementReminderLogs } from '#lib/supplementReminderMatching';
 import { getZonedDateTimeParts, timeZoneFromSettings, zonedDateTimeToTimestamp } from '#lib/timeZones';
 
@@ -101,8 +100,6 @@ async function checkSupplementReminders() {
 
 async function checkWaterReminders() {
 	const now = new Date();
-	const currentDay = now.getDay();
-	const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
 
 	const activeSchedules = db
 		.select({
@@ -119,15 +116,19 @@ async function checkWaterReminders() {
 		.all();
 
 	// Collect users whose schedule fires right now
-	const usersToNotify = new Map<string, { intervalMinutes: number; settings: Record<string, unknown> }>();
+	const usersToNotify = new Map<string, { intervalMinutes: number; settings: Record<string, unknown>; todayStart: number }>();
 
 	for (const s of activeSchedules) {
 		try {
+			const timeZone = timeZoneFromSettings(s.userSettings);
+			const localNow = getZonedDateTimeParts(now, timeZone);
 			const days: number[] = JSON.parse(s.days);
-			if (!days.includes(currentDay)) continue;
+			if (!days.includes(localNow.weekday)) continue;
 
 			const settings = s.userSettings ? JSON.parse(s.userSettings) : {};
 			if (!settings?.waterTrackerEnabled) continue;
+
+			const currentTotalMinutes = localNow.hour * 60 + localNow.minute;
 
 			const [startH, startM] = s.startTime.split(':').map(Number);
 			const [endH, endM] = s.endTime.split(':').map(Number);
@@ -143,17 +144,19 @@ async function checkWaterReminders() {
 			// Keep the shortest interval if a user has multiple matching schedules
 			const existing = usersToNotify.get(s.userId);
 			if (!existing || s.intervalMinutes < existing.intervalMinutes) {
-				usersToNotify.set(s.userId, { intervalMinutes: s.intervalMinutes, settings });
+				usersToNotify.set(s.userId, {
+					intervalMinutes: s.intervalMinutes,
+					settings,
+					todayStart: zonedDateTimeToTimestamp(localNow.dateKey, '00:00', timeZone)
+				});
 			}
 		} catch { /* skip invalid schedule */ }
 	}
 
 	if (usersToNotify.size === 0) return;
 
-	const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-
 	await Promise.allSettled(
-		Array.from(usersToNotify.entries()).map(async ([userId, { intervalMinutes, settings }]) => {
+		Array.from(usersToNotify.entries()).map(async ([userId, { intervalMinutes, settings, todayStart }]) => {
 			const goalMl: number = (settings?.waterGoalMl as number) ?? 2000;
 
 			// Skip if daily goal already reached
@@ -183,8 +186,6 @@ async function checkWaterReminders() {
 
 async function checkMeditationReminders() {
 	const now = new Date();
-	const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-	const todayDow = now.getDay(); // 0=So,1=Mo,...,6=Sa
 
 	const activeSchedules = db
 		.select({
@@ -199,18 +200,19 @@ async function checkMeditationReminders() {
 		.where(eq(meditationReminderSchedules.active, true))
 		.all();
 
-	const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-
 	await Promise.allSettled(
 		activeSchedules.map(async (s) => {
 			try {
-				if (s.time !== currentTime) return;
+				const timeZone = timeZoneFromSettings(s.userSettings);
+				const localNow = getZonedDateTimeParts(now, timeZone);
+				if (s.time !== localNow.time) return;
 				const days: number[] = JSON.parse(s.days);
-				if (!days.includes(todayDow)) return;
+				if (!days.includes(localNow.weekday)) return;
 				const settings = s.userSettings ? JSON.parse(s.userSettings) : {};
 				if (!settings?.meditationTrackerEnabled) return;
 
 				if (s.onlyIfNotMeditated) {
+					const todayStart = zonedDateTimeToTimestamp(localNow.dateKey, '00:00', timeZone);
 					const existing = db
 						.select({ id: meditationLogs.id })
 						.from(meditationLogs)
@@ -230,8 +232,6 @@ async function checkMeditationReminders() {
 
 async function checkMoodReminders() {
 	const now = new Date();
-	const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-	const todayDow = now.getDay(); // 0=So,1=Mo,...,6=Sa
 
 	const activeSchedules = db
 		.select({
@@ -247,14 +247,14 @@ async function checkMoodReminders() {
 		.where(eq(moodReminderSchedules.active, true))
 		.all();
 
-	const todayStr = toLocalDateKey(now);
-
 	await Promise.allSettled(
 		activeSchedules.map(async (s) => {
 			try {
-				if (s.time !== currentTime) return;
+				const localNow = getZonedDateTimeParts(now, timeZoneFromSettings(s.userSettings));
+				const todayStr = localNow.dateKey;
+				if (s.time !== localNow.time) return;
 				const days: number[] = JSON.parse(s.days);
-				if (!days.includes(todayDow)) return;
+				if (!days.includes(localNow.weekday)) return;
 				const settings = s.userSettings ? JSON.parse(s.userSettings) : {};
 				if (!settings?.moodTrackerEnabled) return;
 
