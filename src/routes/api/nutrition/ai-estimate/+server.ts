@@ -3,6 +3,8 @@ import { authGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
 import { users } from '#lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { checkRateLimit } from '#lib/server/loginRateLimit';
+import { isMaskedApiKey } from '#lib/server/settingsPolicy';
 import {
 	buildEstimateSystemInstruction,
 	sanitizeEstimatedItem,
@@ -14,6 +16,8 @@ const SYSTEM_INSTRUCTION = buildEstimateSystemInstruction();
 export const POST: RequestHandler = async (event) => {
 	const { error, user } = authGuard(event);
 	if (error || !user) return error ?? Response.json({ error: 'Unauthorized' }, { status: 401 });
+	// Each call can bill the server's own provider key and try several models.
+	if (!checkRateLimit(`ai:${user.id}`, 30)) return Response.json({ error: 'rate_limited' }, { status: 429 });
 
 	let body: {
 		text?: string;
@@ -46,7 +50,7 @@ export const POST: RequestHandler = async (event) => {
 
 	const provider = body.provider || (userSettingsObj.aiNutritionProvider as 'gemini' | 'openai') || 'gemini';
 	const apiKey = (
-		body.apiKey ||
+		(isMaskedApiKey(body.apiKey) ? '' : body.apiKey) ||
 		(provider === 'gemini'
 			? (userSettingsObj.aiGeminiApiKey as string)
 			: (userSettingsObj.aiOpenaiApiKey as string)) ||
@@ -103,7 +107,7 @@ export const POST: RequestHandler = async (event) => {
 			let lastStatus = 502;
 
 			for (const currentModel of candidateModels) {
-				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
 
 				const isV3OrLater = currentModel.includes('gemini-3') || currentModel.includes('gemini-4') || currentModel.includes('latest');
 
@@ -153,7 +157,7 @@ export const POST: RequestHandler = async (event) => {
 				try {
 					res = await fetch(geminiUrl, {
 						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
+						headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
 						signal: AbortSignal.timeout(15000),
 						body: JSON.stringify(buildPayload('primary'))
 					});
@@ -170,7 +174,7 @@ export const POST: RequestHandler = async (event) => {
 						try {
 							res = await fetch(geminiUrl, {
 								method: 'POST',
-								headers: { 'Content-Type': 'application/json' },
+								headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
 								signal: AbortSignal.timeout(12000),
 								body: JSON.stringify(buildPayload('alternate'))
 							});
@@ -179,7 +183,7 @@ export const POST: RequestHandler = async (event) => {
 							if (!res.ok && res.status === 400) {
 								res = await fetch(geminiUrl, {
 									method: 'POST',
-									headers: { 'Content-Type': 'application/json' },
+									headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
 									signal: AbortSignal.timeout(12000),
 									body: JSON.stringify(buildPayload('none'))
 								});

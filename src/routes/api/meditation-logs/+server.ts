@@ -34,6 +34,8 @@ export const POST: RequestHandler = async (event) => {
 	try {
 		const body = await event.request.json();
 		const { durationSeconds, loggedAt, clientLogId } = body;
+		if (loggedAt != null && !(Number.isSafeInteger(loggedAt) && loggedAt > 0))
+			return Response.json({ error: 'loggedAt must be a timestamp in ms' }, { status: 400 });
 
 		if (typeof durationSeconds !== 'number' || durationSeconds <= 0 || !Number.isInteger(durationSeconds)) {
 			return Response.json({ error: 'durationSeconds muss eine positive ganze Zahl sein' }, { status: 400 });

@@ -17,6 +17,7 @@ export const POST: RequestHandler = async (event) => {
 		if (!Array.isArray(rows) || rows.length === 0) {
 			return Response.json({ error: 'No rows provided' }, { status: 400 });
 		}
+		if (rows.length > 20_000) return Response.json({ error: 'Too many rows (max 20000)' }, { status: 400 });
 
 		const userSupplements = db
 			.select({ id: supplements.id, name: supplements.name })
@@ -38,9 +39,16 @@ export const POST: RequestHandler = async (event) => {
 					continue;
 				}
 				const loggedAt = row.loggedAt;
-				if (!loggedAt || isNaN(loggedAt)) continue;
+				if (!Number.isSafeInteger(loggedAt) || loggedAt <= 0) continue;
 				const amount = Number(row.amount);
-				if (!amount || amount <= 0) continue;
+				if (!Number.isFinite(amount) || amount <= 0) continue;
+
+				// Re-importing a file (or your own export) must not double the history.
+				const duplicate = db.select({ id: supplementLogs.id }).from(supplementLogs)
+					.where(and(eq(supplementLogs.userId, user!.id), eq(supplementLogs.supplementId, suppId),
+						eq(supplementLogs.loggedAt, loggedAt), eq(supplementLogs.amount, amount)))
+					.get();
+				if (duplicate) continue;
 
 				db.insert(supplementLogs).values({
 					id: randomUUID(),

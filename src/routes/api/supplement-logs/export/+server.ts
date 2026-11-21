@@ -4,6 +4,7 @@ import { db } from '#lib/db';
 import { supplementLogs, supplements, supplementNutrients } from '#lib/db/schema';
 import { eq, and, gte, lte } from 'drizzle-orm';
 import { zipSync, strToU8 } from 'fflate';
+import { resolveTimeZone, zonedDateTimeToTimestamp } from '#lib/timeZones';
 
 const BOM = '﻿';
 
@@ -29,12 +30,14 @@ export const GET: RequestHandler = async (event) => {
 
 	const wantLogs = event.url.searchParams.get('logs') === '1';
 	const wantCatalog = event.url.searchParams.get('catalog') === '1';
-	const tz = event.url.searchParams.get('tz') || 'UTC';
+	const tz = resolveTimeZone(event.url.searchParams.get('tz'), 'UTC');
 	const fromDate = event.url.searchParams.get('fromDate');
 	const toDate = event.url.searchParams.get('toDate');
+	const isDateKey = (d: string | null): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d);
 
-	const fromTs = fromDate ? new Date(fromDate + 'T00:00:00').getTime() : null;
-	const toTs = toDate ? new Date(toDate + 'T23:59:59.999').getTime() : null;
+	// Day boundaries in the user's zone, not the server's.
+	const fromTs = isDateKey(fromDate) ? zonedDateTimeToTimestamp(fromDate, '00:00', tz) : null;
+	const toTs = isDateKey(toDate) ? zonedDateTimeToTimestamp(toDate, '23:59', tz) + 59_999 : null;
 
 	if (!wantLogs && !wantCatalog) {
 		return new Response('No export type selected', { status: 400 });

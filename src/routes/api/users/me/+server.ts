@@ -9,6 +9,7 @@ import { users } from '#lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { DEFAULT_SETTINGS, type UserSettings } from '#lib/userSettingsTypes';
 import { applyUserSettingsPatch, sanitizeUserSettingsPatch } from '#lib/userSettingsSync';
+import { enforceSettingsPolicy, redactApiKeys } from '#lib/server/settingsPolicy';
 
 function mergeSettings(stored: string | null | undefined): UserSettings {
 	const base: UserSettings = { ...DEFAULT_SETTINGS };
@@ -35,7 +36,7 @@ export const GET: RequestHandler = async (event) => {
 	}
 
 	return Response.json({
-		settings: mergeSettings(fullUser?.settings),
+		settings: redactApiKeys(mergeSettings(fullUser?.settings)),
 		settingsRevision: fullUser?.settingsRevision ?? 0
 	});
 };
@@ -49,7 +50,9 @@ export const PATCH: RequestHandler = async (event) => {
 	// Settings update (no password required)
 	if (body.settings !== undefined) {
 		const patch = sanitizeUserSettingsPatch(body.settings);
-		if (!patch) return Response.json({ error: 'Ungültige Einstellungen' }, { status: 400 });
+		if (!patch || JSON.stringify(patch).length > 64 * 1024) return Response.json({ error: 'Ungültige Einstellungen' }, { status: 400 });
+		const policyError = enforceSettingsPolicy(patch as Record<string, unknown>);
+		if (policyError) return Response.json({ error: policyError }, { status: 400 });
 		const fullUser = db.select().from(users).where(eq(users.id, user!.id)).get();
 		if (!fullUser) return Response.json({ error: 'Nicht gefunden' }, { status: 404 });
 		const current = mergeSettings(fullUser?.settings);
@@ -70,7 +73,7 @@ export const PATCH: RequestHandler = async (event) => {
 				})
 				.where(eq(users.id, user!.id))
 				.run();
-			return Response.json({ ok: true, settings: merged, settingsRevision: nextRevision });
+			return Response.json({ ok: true, settings: redactApiKeys(merged), settingsRevision: nextRevision });
 		}
 
 		if (!Number.isSafeInteger(requestedRevision) || requestedRevision < 0) {
@@ -79,7 +82,7 @@ export const PATCH: RequestHandler = async (event) => {
 		if (requestedRevision !== fullUser.settingsRevision) {
 			return Response.json({
 				error: 'settings_conflict',
-				settings: current,
+				settings: redactApiKeys(current),
 				settingsRevision: fullUser.settingsRevision
 			}, { status: 409 });
 		}
@@ -98,11 +101,11 @@ export const PATCH: RequestHandler = async (event) => {
 			const latest = db.select().from(users).where(eq(users.id, user!.id)).get();
 			return Response.json({
 				error: 'settings_conflict',
-				settings: mergeSettings(latest?.settings),
+				settings: redactApiKeys(mergeSettings(latest?.settings)),
 				settingsRevision: latest?.settingsRevision ?? 0
 			}, { status: 409 });
 		}
-		return Response.json({ ok: true, settings: merged, settingsRevision: nextRevision });
+		return Response.json({ ok: true, settings: redactApiKeys(merged), settingsRevision: nextRevision });
 	}
 
 	// Password change

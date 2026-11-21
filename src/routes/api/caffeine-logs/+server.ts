@@ -34,6 +34,8 @@ export const POST: RequestHandler = async (event) => {
 	try {
 		const body = await event.request.json();
 		const { drinkName, amountMl, caffeineMg, loggedAt, clientLogId } = body;
+		if (loggedAt != null && !(Number.isSafeInteger(loggedAt) && loggedAt > 0))
+			return Response.json({ error: 'loggedAt must be a timestamp in ms' }, { status: 400 });
 
 		if (typeof drinkName !== 'string' || !drinkName.trim())
 			return Response.json({ error: 'drinkName required' }, { status: 400 });

@@ -351,10 +351,12 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(payload)
 			});
-			if (res.ok) {
-				clearDraft();
-				onsaved();
-			}
+			if (!res.ok) throw new Error(`save ${res.status}`);
+			clearDraft();
+			onsaved();
+		} catch {
+			// The sheet and its draft stay as they are, so nothing typed is lost.
+			alert(t.nutrition_save_error);
 		} finally {
 			saving = false;
 		}

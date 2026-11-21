@@ -146,7 +146,10 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(payload)
 			});
-			if (res.ok) onsaved();
+			if (!res.ok) throw new Error(`save ${res.status}`);
+			onsaved();
+		} catch {
+			alert(t.nutrition_save_error);
 		} finally {
 			saving = false;
 		}

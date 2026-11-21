@@ -35,6 +35,8 @@ export const POST: RequestHandler = async (event) => {
 	try {
 		const body = await event.request.json();
 		const { supplementId, amount, loggedAt, note, clientLogId } = body;
+		if (loggedAt != null && !(Number.isSafeInteger(loggedAt) && loggedAt > 0))
+			return Response.json({ error: 'loggedAt must be a timestamp in ms' }, { status: 400 });
 
 		if (!supplementId) return Response.json({ error: 'supplementId erforderlich' }, { status: 400 });
 		if (typeof amount !== 'number' || amount <= 0) return Response.json({ error: 'Menge muss > 0 sein' }, { status: 400 });

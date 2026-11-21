@@ -5,34 +5,11 @@ import { db } from '#lib/db';
 import { meals, mealComponents, caffeineDrinks, caffeineLogs } from '#lib/db/schema';
 import { and, eq, asc, gte, lte, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { effectiveGrams, computeTotals, mealCaffeineLogPrefix, componentMicrosPer100 } from '#lib/server/nutrition';
-import { type EssentialMicros, stringifyMicrosJson, scaleMicros } from '#lib/micronutrients';
-
-type InputComponent = {
-	productBarcode?: string | null;
-	genericFoodId?: string | null;
-	customName?: string | null;
-	displayName: string;
-	imageUrl?: string | null;
-	amount: number;
-	unit: 'g' | 'ml' | 'piece' | 'portion';
-	gramsPerPiece?: number | null;
-	kcalPer100?: number | null;
-	proteinPer100?: number | null;
-	fatPer100?: number | null;
-	carbsPer100?: number | null;
-	sugarPer100?: number | null;
-	fiberPer100?: number | null;
-	saltPer100?: number | null;
-	micros?: EssentialMicros | null;
-};
-
-function isValidDate(d: unknown): d is string {
-	return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d);
-}
+import { effectiveGrams, mealCaffeineLogPrefix, componentMicrosPer100, buildMealComponentRows, isValidDateKey } from '#lib/server/nutrition';
+import { timeZoneFromSettings, zonedDateTimeToTimestamp } from '#lib/timeZones';
 
 function isValidTime(t: unknown): t is string {
-	return typeof t === 'string' && /^\d{2}:\d{2}$/.test(t);
+	return typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
 }
 
 export const GET: RequestHandler = async (event) => {
@@ -44,12 +21,12 @@ export const GET: RequestHandler = async (event) => {
 	const to = event.url.searchParams.get('to');
 
 	let rows;
-	if (isValidDate(date)) {
+	if (isValidDateKey(date)) {
 		rows = db.select().from(meals)
 			.where(and(eq(meals.userId, user.id), eq(meals.date, date)))
 			.orderBy(asc(meals.time))
 			.all();
-	} else if (isValidDate(from) && isValidDate(to)) {
+	} else if (isValidDateKey(from) && isValidDateKey(to)) {
 		rows = db.select().from(meals)
 			.where(and(
 				eq(meals.userId, user.id),
@@ -96,19 +73,20 @@ export const POST: RequestHandler = async (event) => {
 			name?: string;
 			date?: string;
 			time?: string;
-			components?: InputComponent[];
+			components?: unknown;
 			imageUrl?: string | null;
 			favoriteName?: string | null;
 			caffeineDrinkIds?: string[];
 		};
 
 		if (typeof name !== 'string' || !name.trim()) return Response.json({ error: 'name required' }, { status: 400 });
-		if (!isValidDate(date)) return Response.json({ error: 'date YYYY-MM-DD required' }, { status: 400 });
+		if (!isValidDateKey(date)) return Response.json({ error: 'date YYYY-MM-DD required' }, { status: 400 });
 		if (!isValidTime(time)) return Response.json({ error: 'time HH:MM required' }, { status: 400 });
-		const comps = Array.isArray(components) ? components : [];
 
 		const now = Date.now();
 		const mealId = randomUUID();
+		const built = buildMealComponentRows(mealId, components);
+		if ('error' in built) return Response.json({ error: built.error }, { status: 400 });
 
 		db.transaction(() => {
 			db.insert(meals).values({
@@ -123,52 +101,7 @@ export const POST: RequestHandler = async (event) => {
 				updatedAt: now
 			}).run();
 
-			for (let i = 0; i < comps.length; i++) {
-				const c = comps[i];
-				if (typeof c?.amount !== 'number' || !(c.amount > 0)) continue;
-				if (!['g', 'ml', 'piece', 'portion'].includes(c.unit)) continue;
-				if (typeof c.displayName !== 'string' || !c.displayName.trim()) continue;
-
-				const grams = effectiveGrams(c.amount, c.unit, c.gramsPerPiece);
-				const totals = computeTotals({
-					kcal: c.kcalPer100,
-					protein: c.proteinPer100,
-					fat: c.fatPer100,
-					carbs: c.carbsPer100,
-					sugar: c.sugarPer100,
-					fiber: c.fiberPer100,
-					salt: c.saltPer100
-				}, grams);
-
-				db.insert(mealComponents).values({
-					id: randomUUID(),
-					mealId,
-					sortOrder: i,
-					productBarcode: c.productBarcode ?? null,
-					genericFoodId: c.genericFoodId ?? null,
-					customName: c.customName ?? null,
-					displayName: c.displayName.trim().slice(0, 120),
-					imageUrl: c.imageUrl ?? null,
-					amount: c.amount,
-					unit: c.unit,
-					gramsPerPiece: c.gramsPerPiece ?? null,
-					kcalPer100: c.kcalPer100 ?? null,
-					proteinPer100: c.proteinPer100 ?? null,
-					fatPer100: c.fatPer100 ?? null,
-					carbsPer100: c.carbsPer100 ?? null,
-					sugarPer100: c.sugarPer100 ?? null,
-					fiberPer100: c.fiberPer100 ?? null,
-					saltPer100: c.saltPer100 ?? null,
-					kcal: totals.kcal,
-					protein: totals.protein,
-					fat: totals.fat,
-					carbs: totals.carbs,
-					sugar: totals.sugar,
-					fiber: totals.fiber,
-					salt: totals.salt,
-					microsJson: stringifyMicrosJson(scaleMicros(c.micros, grams / 100))
-				}).run();
-			}
+			for (const row of built.rows) db.insert(mealComponents).values(row).run();
 
 			// Koffein-Spiegel: Für jede verknüpfte Koffein-Getränk-Vorlage zusätzlich einen
 			// Koffein-Log anlegen (Nutrition → Koffein, eine Richtung). Menge + mg kommen
@@ -177,7 +110,7 @@ export const POST: RequestHandler = async (event) => {
 				? [...new Set(caffeineDrinkIds.filter((d): d is string => typeof d === 'string' && !!d))]
 				: [];
 			if (drinkIds.length > 0) {
-				const loggedAt = new Date(`${date}T${time}`).getTime() || now;
+				const loggedAt = zonedDateTimeToTimestamp(date, time, timeZoneFromSettings(user.settings));
 				for (const drinkId of drinkIds) {
 					const drink = db.select().from(caffeineDrinks).where(eq(caffeineDrinks.id, drinkId)).get();
 					if (!drink) continue;

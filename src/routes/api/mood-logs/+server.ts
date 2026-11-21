@@ -41,9 +41,11 @@ export const POST: RequestHandler = async (event) => {
 		if (!Number.isInteger(mood) || mood < 1 || mood > 5) {
 			return Response.json({ error: 'Stimmung muss 1–5 sein' }, { status: 400 });
 		}
-		if (!Number.isInteger(energy) || energy < 1 || energy > 5) {
+		// Optional: installed PWAs from before the energy scale do not send it.
+		if (energy != null && (!Number.isInteger(energy) || energy < 1 || energy > 5)) {
 			return Response.json({ error: 'Energie muss 1–5 sein' }, { status: 400 });
 		}
+		const text = (value: unknown) => (typeof value === 'string' ? value.slice(0, 2000) : null);
 
 		const now = Date.now();
 		const activitiesJson = Array.isArray(activities) ? JSON.stringify(activities) : null;
@@ -56,7 +58,7 @@ export const POST: RequestHandler = async (event) => {
 
 		if (existing) {
 			db.update(moodLogs)
-				.set({ mood, energy, activities: activitiesJson, note: note ?? null, gratitude: gratitude ?? null, updatedAt: now })
+				.set({ mood, ...(energy != null ? { energy } : {}), activities: activitiesJson, note: text(note), gratitude: text(gratitude), updatedAt: now })
 				.where(eq(moodLogs.id, existing.id))
 				.run();
 			return Response.json({ id: existing.id });
@@ -68,10 +70,10 @@ export const POST: RequestHandler = async (event) => {
 			userId: user!.id,
 			date,
 			mood,
-			energy,
+			energy: energy ?? null,
 			activities: activitiesJson,
-			note: note ?? null,
-			gratitude: gratitude ?? null,
+			note: text(note),
+			gratitude: text(gratitude),
 			createdAt: now,
 			updatedAt: now
 		}).run();

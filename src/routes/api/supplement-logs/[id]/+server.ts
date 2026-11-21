@@ -31,6 +31,9 @@ export const PUT: RequestHandler = async (event) => {
 		if (!isFinite(newAmount) || newAmount <= 0) {
 			return Response.json({ error: 'Menge muss > 0 sein' }, { status: 400 });
 		}
+		if (!Number.isSafeInteger(newLoggedAt) || newLoggedAt <= 0) {
+			return Response.json({ error: 'loggedAt must be a timestamp in ms' }, { status: 400 });
+		}
 
 		db.transaction(() => {
 			const supplement = db

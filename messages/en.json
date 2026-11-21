@@ -909,6 +909,8 @@
 	"nutrition_diet_keto": "Keto",
 	"nutrition_copy_from_yesterday": "Copy from yesterday",
 	"nutrition_no_yesterday_meal": "No items recorded in this meal yesterday",
+	"nutrition_load_error": "Could not load this day. Check the connection and try again.",
+	"nutrition_save_error": "Could not save. Your changes are preserved. Please try again.",
 	"nutrition_copied_from_yesterday": "Copied from yesterday",
 	"nutrition_meal_empty": "No foods logged yet",
 	"nutrition_meal_breakfast": "Breakfast",

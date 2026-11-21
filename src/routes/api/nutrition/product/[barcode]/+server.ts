@@ -46,12 +46,8 @@ export const PATCH: RequestHandler = async (event) => {
 	if (!body) return Response.json({ error: 'Empty body' }, { status: 400 });
 
 	const num = (v: unknown): number | null => {
-		if (typeof v === 'number' && Number.isFinite(v)) return v;
-		if (typeof v === 'string') {
-			const n = parseFloat(v.replace(',', '.'));
-			return Number.isFinite(n) ? n : null;
-		}
-		return null;
+		const n = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : v;
+		return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : null;
 	};
 
 	const servingQuantity = body.servingQuantity !== undefined ? num(body.servingQuantity) : undefined;
@@ -79,6 +75,9 @@ export const PATCH: RequestHandler = async (event) => {
 	const brand = body.brand !== undefined ? (typeof body.brand === 'string' ? body.brand.trim() || null : null) : undefined;
 
 	const now = Date.now();
+	// A portion-size save alone must not freeze the product against Open Food Facts refreshes.
+	const correctsProduct = [name, brand, kcalPer100, proteinPer100, fatPer100, carbsPer100, sugarPer100, fiberPer100, saltPer100, microsJson, ingredientsText]
+		.some((v) => v !== undefined);
 	const existing = db.select().from(barcodeCache).where(eq(barcodeCache.barcode, code)).get();
 
 	if (existing) {
@@ -97,7 +96,7 @@ export const PATCH: RequestHandler = async (event) => {
 				...(saltPer100 !== undefined ? { saltPer100 } : {}),
 				...(microsJson !== undefined ? { microsJson } : {}),
 				...(ingredientsText !== undefined ? { ingredientsText } : {}),
-				userEditedAt: now,
+				...(correctsProduct ? { userEditedAt: now } : {}),
 				lastSeenAt: now
 			})
 			.where(eq(barcodeCache.barcode, code))
@@ -119,7 +118,7 @@ export const PATCH: RequestHandler = async (event) => {
 				saltPer100: saltPer100 ?? null,
 				microsJson: microsJson ?? null,
 				ingredientsText: ingredientsText ?? null,
-				userEditedAt: now,
+				...(correctsProduct ? { userEditedAt: now } : {}),
 				lastSeenAt: now,
 				fetchedAt: now
 			})

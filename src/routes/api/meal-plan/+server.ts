@@ -125,19 +125,19 @@ export const POST: RequestHandler = async (event) => {
 			.where(and(eq(mealPlanEntries.userId, user!.id), inArray(mealPlanEntries.date, dates)))
 			.all();
 
-		// Rezept-Portionen summieren
-		const recipeServingsMap = new Map<string, number>(); // recipeId → totalServings
+		// Portionen je Rezept sammeln; null = Standardportionen des Rezepts (so zeigt es auch der Planer an)
+		const entryServings = new Map<string, (number | null)[]>(); // recipeId → servings per entry
 		const freeTextItems: string[] = [];
 
 		for (const entry of entries) {
-			if (entry.recipeId && entry.servings) {
-				recipeServingsMap.set(entry.recipeId, (recipeServingsMap.get(entry.recipeId) ?? 0) + entry.servings);
+			if (entry.recipeId) {
+				entryServings.set(entry.recipeId, [...(entryServings.get(entry.recipeId) ?? []), entry.servings || null]);
 			} else if (entry.note?.trim()) {
 				freeTextItems.push(entry.note.trim());
 			}
 		}
 
-		let recipeIds = [...recipeServingsMap.keys()];
+		let recipeIds = [...entryServings.keys()];
 
 		// Rezept-Standardportionen laden
 		const recipeDefaultServings = new Map<string, number>();
@@ -150,6 +150,10 @@ export const POST: RequestHandler = async (event) => {
 			for (const r of recipeRows) recipeDefaultServings.set(r.id, r.servings);
 			recipeIds = recipeRows.map(r => r.id);
 		}
+		const recipeServingsMap = new Map(recipeIds.map((id) => [
+			id,
+			entryServings.get(id)!.reduce<number>((sum, servings) => sum + (servings ?? recipeDefaultServings.get(id)!), 0)
+		]));
 
 		// Ausgeschlossene Zutaten des Users laden
 		const excludedSet = new Set<string>();

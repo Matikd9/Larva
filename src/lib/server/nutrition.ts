@@ -1,8 +1,9 @@
 // Shared Nutrition-Helpers für Server-Endpoints.
 
 import { db, sqlite } from '#lib/db';
-import { barcodeCache } from '#lib/db/schema';
+import { barcodeCache, mealComponents } from '#lib/db/schema';
 import { eq, and, or, like, sql, desc } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
 import { type EssentialMicros, parseMicrosJson, stringifyMicrosJson, scaleMicros } from '#lib/micronutrients';
 
 const USER_AGENT = 'Groly/0.7 (self-hosted grocery list app)';
@@ -222,6 +223,11 @@ export async function lookupProduct(code: string): Promise<ProductData | null> {
 	if (!/^\d{8,14}$/.test(code)) return null;
 
 	const cached = db.select().from(barcodeCache).where(eq(barcodeCache.barcode, code)).get();
+	// Name-only rows from older shopping-list scans were never fetched with nutrition data.
+	if (cached && cached.kcalPer100 == null && cached.fetchedAt == null) {
+		const fresh = await refreshFromOff(code);
+		if (fresh) return fresh;
+	}
 	if (cached) {
 		// lastSeenAt updaten
 		db.update(barcodeCache)
@@ -524,6 +530,92 @@ export function recipeIngredientsSnapshot(names: (string | null | undefined)[]):
 		.map((n) => (n ?? '').trim().toLowerCase())
 		.filter((n) => n.length > 0)
 		.join('|');
+}
+
+export function isValidDateKey(value: unknown): value is string {
+	if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+	const time = Date.parse(`${value}T00:00:00Z`);
+	return !Number.isNaN(time) && new Date(time).toISOString().startsWith(value);
+}
+
+export type MealComponentInput = {
+	productBarcode?: string | null;
+	genericFoodId?: string | null;
+	customName?: string | null;
+	displayName: string;
+	imageUrl?: string | null;
+	amount: number;
+	unit: 'g' | 'ml' | 'piece' | 'portion';
+	gramsPerPiece?: number | null;
+	kcalPer100?: number | null;
+	proteinPer100?: number | null;
+	fatPer100?: number | null;
+	carbsPer100?: number | null;
+	sugarPer100?: number | null;
+	fiberPer100?: number | null;
+	saltPer100?: number | null;
+	micros?: EssentialMicros | null;
+};
+
+const PER100_FIELDS = ['kcalPer100', 'proteinPer100', 'fatPer100', 'carbsPer100', 'sugarPer100', 'fiberPer100', 'saltPer100'] as const;
+
+// null = not given; undefined = invalid.
+function optionalQuantity(value: unknown, max: number): number | null | undefined {
+	if (value == null) return null;
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= max ? value : undefined;
+}
+
+const optionalText = (value: unknown) => (typeof value === 'string' ? value : null);
+
+/** Validates client meal components and computes their stored totals. */
+export function buildMealComponentRows(
+	mealId: string,
+	input: unknown
+): { rows: (typeof mealComponents.$inferInsert)[] } | { error: string } {
+	const comps = Array.isArray(input) ? (input as MealComponentInput[]) : [];
+	const rows: (typeof mealComponents.$inferInsert)[] = [];
+	for (let i = 0; i < comps.length; i++) {
+		const c = comps[i];
+		// Empty editor rows are skipped, as before.
+		if (typeof c?.amount !== 'number' || !(c.amount > 0)) continue;
+		if (!['g', 'ml', 'piece', 'portion'].includes(c.unit)) continue;
+		if (typeof c.displayName !== 'string' || !c.displayName.trim()) continue;
+
+		if (!optionalQuantity(c.amount, 100_000)) return { error: `components[${i}].amount is invalid` };
+		const per100: Record<(typeof PER100_FIELDS)[number], number | null> = {} as never;
+		for (const field of PER100_FIELDS) {
+			const value = optionalQuantity(c[field], 1000);
+			if (value === undefined) return { error: `components[${i}].${field} must be a number from 0 to 1000` };
+			per100[field] = value;
+		}
+		const gramsPerPiece = optionalQuantity(c.gramsPerPiece, 100_000);
+		if (gramsPerPiece === undefined || ((c.unit === 'piece' || c.unit === 'portion') && !gramsPerPiece)) {
+			return { error: `components[${i}].gramsPerPiece is required for ${c.unit}` };
+		}
+
+		const grams = effectiveGrams(c.amount, c.unit, gramsPerPiece);
+		const totals = computeTotals({
+			kcal: per100.kcalPer100, protein: per100.proteinPer100, fat: per100.fatPer100, carbs: per100.carbsPer100,
+			sugar: per100.sugarPer100, fiber: per100.fiberPer100, salt: per100.saltPer100
+		}, grams);
+		rows.push({
+			id: randomUUID(),
+			mealId,
+			sortOrder: i,
+			productBarcode: optionalText(c.productBarcode),
+			genericFoodId: optionalText(c.genericFoodId),
+			customName: optionalText(c.customName),
+			displayName: c.displayName.trim().slice(0, 120),
+			imageUrl: optionalText(c.imageUrl),
+			amount: c.amount,
+			unit: c.unit,
+			gramsPerPiece,
+			...per100,
+			...totals,
+			microsJson: stringifyMicrosJson(scaleMicros(c.micros, grams / 100))
+		});
+	}
+	return { rows };
 }
 
 export function computeTotals(per100: Per100, grams: number) {

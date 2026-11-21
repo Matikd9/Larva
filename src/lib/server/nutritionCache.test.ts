@@ -16,7 +16,31 @@ vi.mock('#lib/db', async () => {
 import { db } from '#lib/db';
 import { barcodeCache } from '#lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { componentMicrosPer100, searchOff } from './nutrition';
+import { buildMealComponentRows, componentMicrosPer100, isValidDateKey, searchOff } from './nutrition';
+
+describe('meal component validation', () => {
+	const base = { displayName: 'Skyr', amount: 2, unit: 'portion', gramsPerPiece: 150, kcalPer100: 60 };
+
+	it('computes totals and skips empty editor rows', () => {
+		const result = buildMealComponentRows('m1', [base, { ...base, amount: 0 }]);
+		expect('rows' in result && result.rows).toEqual([expect.objectContaining({ mealId: 'm1', kcal: 180, gramsPerPiece: 150 })]);
+	});
+
+	it.each([
+		[{ ...base, kcalPer100: -5 }],
+		[{ ...base, proteinPer100: 'lots' }],
+		[{ ...base, gramsPerPiece: null }],
+		[{ ...base, amount: Infinity }]
+	])('rejects invalid input %#', (component) => {
+		expect(buildMealComponentRows('m1', [component])).toHaveProperty('error');
+	});
+
+	it('only accepts real calendar dates', () => {
+		expect(isValidDateKey('2024-02-29')).toBe(true);
+		expect(isValidDateKey('2023-02-29')).toBe(false);
+		expect(isValidDateKey('2024-99-99')).toBe(false);
+	});
+});
 import { scaleMicros } from '#lib/micronutrients';
 
 describe('meal component micros', () => {

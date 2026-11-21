@@ -3,6 +3,7 @@ import { db } from '#lib/db';
 import { users } from '#lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { languageFromAcceptLanguage } from '#lib/language';
+import { redactApiKeys } from '#lib/server/settingsPolicy';
 
 export const load: LayoutServerLoad = async ({ locals, request }) => {
 	if (!locals.user) return {
@@ -17,7 +18,7 @@ export const load: LayoutServerLoad = async ({ locals, request }) => {
 	}).from(users).where(eq(users.id, locals.user.id)).get();
 	let settings = null;
 	try {
-		settings = fullUser?.settings ? JSON.parse(fullUser.settings) : {};
+		settings = fullUser?.settings ? redactApiKeys(JSON.parse(fullUser.settings)) : {};
 	} catch { settings = {}; }
 
 	return {

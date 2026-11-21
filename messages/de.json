@@ -909,6 +909,8 @@
 	"nutrition_diet_keto": "Keto",
 	"nutrition_copy_from_yesterday": "Von gestern kopieren",
 	"nutrition_no_yesterday_meal": "Gestern wurden für diese Mahlzeit keine Einträge gefunden",
+	"nutrition_load_error": "Dieser Tag konnte nicht geladen werden. Prüfe die Verbindung und versuche es erneut.",
+	"nutrition_save_error": "Speichern fehlgeschlagen. Deine Änderungen bleiben erhalten. Bitte versuche es erneut.",
 	"nutrition_copied_from_yesterday": "Von gestern kopiert",
 	"nutrition_meal_empty": "Noch keine Lebensmittel erfasst",
 	"nutrition_meal_breakfast": "Frühstück",

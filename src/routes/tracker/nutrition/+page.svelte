@@ -100,20 +100,27 @@
 		return d.toLocaleDateString(currentLang(), { weekday: 'short', day: 'numeric', month: 'long' });
 	}
 
+	let loadError = $state(false);
+	let loadToken = 0;
+
 	async function load() {
+		// Only the newest request may write state; a slow answer for another day is dropped.
+		const token = ++loadToken;
 		loading = true;
 		try {
 			const [mealsRes, goalsRes] = await Promise.all([
 				fetch(`/api/nutrition/meals?date=${dateStr}`),
 				fetch('/api/nutrition/goals')
 			]);
-			if (mealsRes.ok) {
-				const d = await mealsRes.json();
-				meals = d.meals ?? [];
-				syncDaySubdivisions();
-			}
+			if (!mealsRes.ok) throw new Error(`meals ${mealsRes.status}`);
+			const d = await mealsRes.json();
+			if (token !== loadToken) return;
+			meals = d.meals ?? [];
+			loadError = false;
+			syncDaySubdivisions();
 			if (goalsRes.ok) {
 				const d = await goalsRes.json();
+				if (token !== loadToken) return;
 				goalKcal = d.goals?.dailyKcal ?? null;
 				goalProtein = d.goals?.dailyProtein ?? null;
 				goalFat = d.goals?.dailyFat ?? null;
@@ -122,9 +129,13 @@
 				customMicrosGoals = d.goals?.customMicros ?? {};
 			}
 		} catch {
-			// noop
+			// An empty day here would look like lost data and invite logging it twice.
+			if (token === loadToken) {
+				meals = [];
+				loadError = true;
+			}
 		} finally {
-			loading = false;
+			if (token === loadToken) loading = false;
 		}
 	}
 
@@ -257,6 +268,7 @@
 			}));
 
 			const todayMeal = meals.find((m) => getMealBlock(m.name) === blockKey);
+			let saveRes: Response;
 			if (todayMeal) {
 				const existingCleanComps = todayMeal.components.map((c) => ({
 					productBarcode: c.productBarcode,
@@ -276,7 +288,7 @@
 					saltPer100: c.saltPer100,
 					micros: c.micros
 				}));
-				await fetch(`/api/nutrition/meals/${todayMeal.id}`, {
+				saveRes = await fetch(`/api/nutrition/meals/${todayMeal.id}`, {
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
@@ -286,7 +298,7 @@
 			} else {
 				const now = new Date();
 				const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-				await fetch('/api/nutrition/meals', {
+				saveRes = await fetch('/api/nutrition/meals', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
@@ -297,6 +309,7 @@
 					})
 				});
 			}
+			if (!saveRes.ok) throw new Error(`save ${saveRes.status}`);
 
 			copiedBlock = blockKey;
 			setTimeout(() => {
@@ -305,6 +318,7 @@
 			await load();
 		} catch (e) {
 			console.error(e);
+			alert(t.nutrition_save_error);
 		} finally {
 			copyingBlock = null;
 		}
@@ -633,6 +647,7 @@
 		};
 
 		const existingMeal = meals.find((m) => m.name.trim().toLowerCase() === targetSubName.trim().toLowerCase());
+		let saved: Promise<Response>;
 		if (existingMeal) {
 			const cleanExisting = existingMeal.components.map((c) => ({
 				productBarcode: c.productBarcode ?? null,
@@ -652,7 +667,7 @@
 				saltPer100: c.saltPer100 ?? null,
 				micros: c.micros ?? null
 			}));
-			await fetch(`/api/nutrition/meals/${existingMeal.id}`, {
+			saved = fetch(`/api/nutrition/meals/${existingMeal.id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
@@ -662,7 +677,7 @@
 		} else {
 			const now = new Date();
 			const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-			await fetch('/api/nutrition/meals', {
+			saved = fetch('/api/nutrition/meals', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
@@ -672,6 +687,11 @@
 					components: [payloadComp]
 				})
 			});
+		}
+		// On failure the sheet stays open so the food is not lost.
+		if (!(await saved.then((res) => res.ok, () => false))) {
+			alert(t.nutrition_save_error);
+			return;
 		}
 		postRegisterSheetOpen = false;
 		registeredFood = null;
@@ -921,6 +941,11 @@
 			<div class="flex justify-center py-12">
 				<div class="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
 				     style="border-color: var(--color-primary); border-top-color: transparent"></div>
+			</div>
+		{:else if loadError}
+			<div class="flex flex-col items-center gap-3 py-12 text-center" role="alert">
+				<p class="text-sm" style="color: var(--color-on-surface-variant)">{t.nutrition_load_error}</p>
+				<button type="button" onclick={load} class="text-sm font-semibold underline" style="color: #FB923C">{t.offline_retry}</button>
 			</div>
 		{:else if userSettings.nutritionMealSubdivisionsEnabled}
 			<div class="space-y-3.5 pb-6" aria-label={t.nutrition_meals_section}>
