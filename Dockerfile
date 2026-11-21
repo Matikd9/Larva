@@ -22,7 +22,7 @@ WORKDIR /app
 
 # Copy only the verified Node runtime, so package managers and SDK headers never
 # enter a shipped image layer. SQLite 13 embeds SQLite in its native addon.
-RUN apk add --no-cache --upgrade zlib=1.3.2-r1 libstdc++ libgcc libatomic su-exec \
+RUN apk add --no-cache --upgrade zlib libstdc++ libgcc libatomic su-exec \
     && addgroup -g 1000 node \
     && adduser -u 1000 -G node -s /bin/sh -D node
 COPY --from=node-base /usr/local/bin/node /usr/local/bin/node
@@ -38,7 +38,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/scripts/start-server.mjs ./scripts/start-server.mjs
 COPY --from=builder /app/scripts/runtime-origin.mjs ./scripts/runtime-origin.mjs
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && mkdir -p /app/data
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh && mkdir -p /app/data
 
 EXPOSE 3000
 ENV NODE_ENV=production
