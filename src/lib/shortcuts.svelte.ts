@@ -29,18 +29,18 @@ export const shortcutMenu = {
 
 export function shortcutActionLabel(action: ShortcutAction): string {
 	switch (action) {
-		case 'go': return t.shortcut_action_open;
-		case 'add': return t.shortcut_action_add;
-		case 'scanner': return t.shortcut_action_scanner;
-		case 'log-tracker': return t.shortcut_action_tracker;
+		case 'log-meal': return t.shortcut_action_meal;
 		case 'log-supplement': return t.shortcut_action_supplements;
+		case 'log-water': return t.shortcut_action_water;
+		case 'log-caffeine': return t.shortcut_action_caffeine;
+		case 'log-mood': return t.shortcut_action_mood;
+		case 'log-meditation': return t.shortcut_action_meditation;
+		case 'log-tracker': return t.shortcut_action_tracker;
 	}
 }
 
 export function executeShortcut(shortcut: Shortcut) {
 	const target = shortcutTarget(shortcut);
 	if (!target) return;
-	// Keep focus in the original user gesture so the iOS keyboard survives navigation.
-	if (shortcut.action === 'add') (document.getElementById('ios-keyboard-bridge') as HTMLInputElement | null)?.focus();
 	void goto(target);
 }

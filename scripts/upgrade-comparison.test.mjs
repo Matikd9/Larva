@@ -74,6 +74,19 @@ test('rejects changed images and foreign-key violations', () => fixture(async ({
 	assert.throws(() => compareUpgradeData(before, brokenRelation, 'Upgrade', expected), /new foreign key violations/);
 }));
 
+test('allows dropping only the retired shopping-list tables', () => fixture(async ({ db, uploads }) => {
+	db.exec("CREATE TABLE lists (id TEXT PRIMARY KEY); INSERT INTO lists VALUES ('l1'); CREATE TABLE keep_me (id TEXT)");
+	const legacy = await snapshotUpgradeData({}, db.name, uploads);
+	const drop = sql => [{ ...migration, sql: [sql], folderMillis: 3 }];
+	const expected = expectedUpgrade(legacy, drop('DROP TABLE lists'));
+	assert.deepEqual(expected.dropped, ['lists']);
+	db.exec('DROP TABLE lists');
+	db.prepare('INSERT INTO __drizzle_migrations(hash,created_at) VALUES (?,?)').run(migration.hash, 3);
+	const columns = Object.fromEntries(Object.entries(legacy.tables).map(([name, table]) => [name, table.columns.map(column => column.name)]));
+	compareUpgradeData(legacy, await snapshotUpgradeData(columns, db.name, uploads), 'Upgrade', expected);
+	assert.throws(() => expectedUpgrade(legacy, drop('DROP TABLE keep_me')), /contract: keep_me/);
+}));
+
 test('requires an explicit contract for destructive or non-null schema changes', () => fixture(async ({ before }) => {
 	for (const sql of ['ALTER TABLE users DROP COLUMN name', 'ALTER TABLE users ADD value INTEGER NOT NULL DEFAULT 1', 'CREATE TABLE unexpected(id TEXT)']) {
 		assert.throws(() => expectedUpgrade(before, [{ ...migration, sql: [sql] }]), /contract/);

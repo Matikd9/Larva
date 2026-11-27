@@ -11,18 +11,14 @@
 		fabLabel = '',
 		showFab = true,
 		fabVariant = 'add',
-		fabColor = 'var(--color-primary)',
-		onFavorites = null,
-		trackerBack = false
+		fabColor = 'var(--color-primary)'
 	}: {
-		activeTab: 'lists' | 'tracker' | 'recipes' | 'none';
+		activeTab: 'home' | 'history' | 'recipes' | 'none';
 		onFabTap?: (() => void) | null;
 		fabLabel?: string;
 		showFab?: boolean;
 		fabVariant?: 'add' | 'edit';
 		fabColor?: string;
-		onFavorites?: (() => void) | null;
-		trackerBack?: boolean;
 	} = $props();
 
 	const activeOut = '1.5px solid color-mix(in srgb, var(--color-primary) 55%, transparent)';
@@ -36,61 +32,40 @@
 		<div class="flex items-center rounded-full gap-0.5" style="height: 52px; padding-left: 1.5px; padding-right: 1.5px; background-color: color-mix(in srgb, var(--color-bg) 60%, transparent); border: 1px solid var(--bubble-interactive-border); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px)"
 		>
 
-			<!-- Lists -->
+			<!-- Nutrition (home) -->
 			<button
 				onclick={() => goto('/')}
-				class="flex items-center rounded-full transition-all duration-200 active:opacity-70 select-none {activeTab === 'lists' ? 'gap-2 px-4 h-full' : 'h-11 w-11 justify-center'}"
-				style="background-color: transparent; {activeTab === 'lists' ? `outline: ${activeOut}` : ''}"
-				aria-label={t.nav_lists}
+				class="flex items-center rounded-full transition-all duration-200 active:opacity-70 select-none {activeTab === 'home' ? 'gap-2 px-4 h-full' : 'h-11 w-11 justify-center'}"
+				style="background-color: transparent; {activeTab === 'home' ? `outline: ${activeOut}` : ''}"
+				aria-label={t.nutrition_label}
 			>
 				<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-				     stroke={activeTab === 'lists' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)'}
-				     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-					<line x1="3" y1="6" x2="21" y2="6"/>
-					<path d="M16 10a4 4 0 0 1-8 0"/>
+				     stroke={activeTab === 'home' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)'}
+				     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M12 6.5c-1.5-2.5-6-2.6-7.4 1-1.6 4 1.2 11 4.4 12.2 1.1.4 2-.3 3-.3s1.9.7 3 .3c3.2-1.2 6-8.2 4.4-12.2-1.4-3.6-5.9-3.5-7.4-1Z"/>
+					<path d="M12 6.5c0-2 1-3.5 3-4"/>
 				</svg>
-				{#if activeTab === 'lists'}
-					<span class="text-sm font-medium whitespace-nowrap"
-					      style="color: var(--color-primary)">{t.nav_lists}</span>
+				{#if activeTab === 'home'}
+					<span class="text-sm font-medium whitespace-nowrap" style="color: var(--color-primary)">{t.nutrition_label}</span>
 				{/if}
 			</button>
 
-			<!-- Supplements -->
-			{#if userSettings.showSupplementTracker}
-				<button
-					onclick={() => {
-					if (activeTab === 'tracker' && page.url.pathname === '/tracker') {
-						const isHistory = page.url.searchParams.get('tab') === 'history';
-						goto(isHistory ? '/tracker' : '/tracker?tab=history', { reset: false });
-					} else {
-						goto('/tracker');
-					}
-				}}
-					class="flex items-center rounded-full transition-all duration-200 active:opacity-70 select-none {activeTab === 'tracker' ? 'gap-2 px-4 h-full' : 'h-11 w-11 justify-center'}"
-					style="background-color: transparent; {activeTab === 'tracker' ? `outline: ${activeOut}` : ''}"
-					aria-label={trackerBack ? t.nutrition_back_to_tracker : t.nav_supplements}
-				>
-					{#if trackerBack}
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-						     stroke="var(--color-primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
-						     aria-hidden="true">
-							<polyline points="15 18 9 12 15 6" />
-						</svg>
-					{:else}
-						<svg width="26" height="26" viewBox="0 0 24 24" fill="none"
-						     stroke={activeTab === 'tracker' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)'}
-						     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M4.8 8.4L19.2 8.4A3.6 3.6 0 0 1 19.2 15.6L4.8 15.6A3.6 3.6 0 0 1 4.8 8.4Z" fill="none" stroke-width="1.8" stroke-linejoin="round"/>
-							<line x1="12" y1="8.4" x2="12" y2="15.6" stroke-width="0.85" stroke-linecap="round"/>
-						</svg>
-					{/if}
-					{#if activeTab === 'tracker'}
-						<span class="text-sm font-medium whitespace-nowrap"
-						      style="color: var(--color-primary)">{t.supplement_title}</span>
-					{/if}
-				</button>
-			{/if}
+			<!-- History -->
+			<button
+				onclick={() => goto('/tracker')}
+				class="flex items-center rounded-full transition-all duration-200 active:opacity-70 select-none {activeTab === 'history' ? 'gap-2 px-4 h-full' : 'h-11 w-11 justify-center'}"
+				style="background-color: transparent; {activeTab === 'history' ? `outline: ${activeOut}` : ''}"
+				aria-label={t.supplement_tab_history}
+			>
+				<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+				     stroke={activeTab === 'history' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)'}
+				     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>
+				</svg>
+				{#if activeTab === 'history'}
+					<span class="text-sm font-medium whitespace-nowrap" style="color: var(--color-primary)">{t.supplement_tab_history}</span>
+				{/if}
+			</button>
 
 			<!-- Recipes -->
 			{#if userSettings.showRecipes}
@@ -137,22 +112,6 @@
 			{:else}
 				<FabWithShortcuts onTap={onFabTap} label={fabLabel} color={fabColor} />
 			{/if}
-		{/if}
-
-		<!-- Favorites button (only on list-detail view) -->
-		{#if onFavorites}
-			<button
-				onclick={onFavorites}
-				class="rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform select-none"
-				style="width: 48px; height: 48px; background-color: color-mix(in srgb, var(--color-bg) 60%, transparent); border: 1px solid var(--bubble-interactive-border); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px)"
-				aria-label={t.favorites_panel_toggle}
-			>
-				<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-				     stroke="var(--color-primary)"
-				     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-					<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-				</svg>
-			</button>
 		{/if}
 
 	</div>

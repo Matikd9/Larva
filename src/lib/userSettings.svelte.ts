@@ -1,8 +1,7 @@
 import { normalizeShortcuts, MAX_SHORTCUTS } from '#lib/shortcutActions';
 import { browser } from '$app/env';
-import { type UserSettings, type ListCategorySettings, type Shortcut, DEFAULT_SETTINGS } from '#lib/userSettingsTypes';
-import { DEFAULT_CATEGORY_ORDER } from '#lib/categories';
-export type { UserSettings, ListCategorySettings, Shortcut } from '#lib/userSettingsTypes';
+import { type UserSettings, type Shortcut, DEFAULT_SETTINGS } from '#lib/userSettingsTypes';
+export type { UserSettings, Shortcut } from '#lib/userSettingsTypes';
 export { DEFAULT_SETTINGS } from '#lib/userSettingsTypes';
 import type { Locale } from '#lib/paraglide/runtime';
 import { drainPendingMutations, queueUserSettingsPatch, refreshUserSettings } from '#lib/sync/manager';
@@ -41,13 +40,7 @@ function loadCache(userId?: string | null): UserSettings {
 		// Legacy: migrate old separate keys
 		if (!raw) {
 			const legacyLang = localStorage.getItem('groly_lang');
-			const legacyCat = localStorage.getItem('groly_category_settings');
-			const merged: UserSettings = {};
-			if (legacyLang) merged.lang = legacyLang as Locale;
-			if (legacyCat) {
-				try { Object.assign(merged, JSON.parse(legacyCat)); } catch {}
-			}
-			return merged;
+			return legacyLang ? { lang: legacyLang as Locale } : {};
 		}
 		return JSON.parse(raw);
 	} catch { return {}; }
@@ -64,55 +57,15 @@ function saveCache(s: UserSettings, userId: string | null = activeSettingsUserId
 	localStorage.setItem(CACHE_KEY, JSON.stringify(s));
 }
 
-function merge(stored: UserSettings): Required<typeof DEFAULT_SETTINGS> {
-	let order: string[];
-	if (!stored.categoryOrder) {
-		order = [...DEFAULT_SETTINGS.categoryOrder];
-	} else {
-		// Migration: fehlende Kategorien aus dem Default an der richtigen Stelle einfügen
-		order = [...stored.categoryOrder];
-		for (const key of DEFAULT_CATEGORY_ORDER) {
-			if (order.includes(key)) continue;
-			// Vor dem nächsten Default-Nachfolger einfügen, der bereits in der Order ist
-			const defaultIdx = DEFAULT_CATEGORY_ORDER.indexOf(key);
-			let inserted = false;
-			for (let i = defaultIdx + 1; i < DEFAULT_CATEGORY_ORDER.length; i++) {
-				const resultIdx = order.indexOf(DEFAULT_CATEGORY_ORDER[i]);
-				if (resultIdx !== -1) {
-					order.splice(resultIdx, 0, key);
-					inserted = true;
-					break;
-				}
-			}
-			if (!inserted) order.push(key);
-		}
-	}
-	return {
-		lang: stored.lang ?? DEFAULT_SETTINGS.lang,
-		categorySortEnabled: stored.categorySortEnabled ?? DEFAULT_SETTINGS.categorySortEnabled,
-		categoryOrder: order
-	};
-}
-
 // --- Reactive state ---
 // The user ID is only known from the root layout. Start neutral to avoid showing
 // another account's legacy cache for even a frame; initUserSettings applies the
 // correct scoped cache synchronously before its first network await.
 const cache: UserSettings = {};
-const initial = merge(cache);
 
-let _lang = $state(initial.lang);
+let _lang = $state(cache.lang ?? DEFAULT_SETTINGS.lang);
 let _timeZone = $state<string>(cache.timeZone ?? '');
-let _categorySortEnabled = $state(initial.categorySortEnabled);
-let _categoryOrder = $state<string[]>(initial.categoryOrder);
-let _listCategorySettings = $state<Record<string, ListCategorySettings>>(cache.listCategorySettings ?? {});
 let _shortcuts = $state<Shortcut[]>(cache.shortcuts ?? []);
-let _locationNavEnabled = $state<boolean>(cache.locationNavEnabled ?? false);
-let _listLocationDisabled = $state<string[]>(cache.listLocationDisabled ?? []);
-let _itemLayout = $state<'grid' | 'list'>(cache.itemLayout ?? 'grid');
-let _showAllCheckedItems = $state<boolean>(cache.showAllCheckedItems ?? false);
-let _showFavoriteIndicator = $state<boolean>(cache.showFavoriteIndicator ?? true);
-let _showSupplementTracker = $state<boolean>(cache.showSupplementTracker ?? true);
 let _showRecipes = $state<boolean>(cache.showRecipes ?? true);
 let _theme = $state<'system' | 'light' | 'dark'>(cache.theme ?? 'system');
 let _colorScheme = $state<'crimson' | 'forest' | 'classic' | 'indigo'>(cache.colorScheme ?? 'crimson');
@@ -149,7 +102,6 @@ let _aiOpenaiApiKey = $state<string>(cache.aiOpenaiApiKey ?? '');
 let _aiOpenaiModel = $state<'gpt-4o-mini' | 'gpt-4o'>(cache.aiOpenaiModel ?? 'gpt-4o-mini');
 let _hiddenMoodTags = $state<string[]>(cache.hiddenMoodTags ?? []);
 let _greetingEnabled = $state<boolean>(cache.greetingEnabled ?? true);
-let _wakeLockLists = $state<boolean>(cache.wakeLockLists ?? true);
 let _wakeLockRecipes = $state<boolean>(cache.wakeLockRecipes ?? true);
 let _wakeLockMeditation = $state<boolean>(cache.wakeLockMeditation ?? true);
 
@@ -173,16 +125,7 @@ function currentSettings(): UserSettings {
 		timeZone: _timeZone,
 		theme: _theme,
 		colorScheme: _colorScheme,
-		categorySortEnabled: _categorySortEnabled,
-		categoryOrder: _categoryOrder,
-		listCategorySettings: _listCategorySettings,
 		shortcuts: _shortcuts,
-		locationNavEnabled: _locationNavEnabled,
-		listLocationDisabled: _listLocationDisabled,
-		itemLayout: _itemLayout,
-		showAllCheckedItems: _showAllCheckedItems,
-		showFavoriteIndicator: _showFavoriteIndicator,
-		showSupplementTracker: _showSupplementTracker,
 		showRecipes: _showRecipes,
 		supplementSortOrder: _supplementSortOrder,
 		waterTrackerEnabled: _waterTrackerEnabled,
@@ -211,7 +154,6 @@ function currentSettings(): UserSettings {
 		aiOpenaiModel: _aiOpenaiModel,
 		hiddenMoodTags: _hiddenMoodTags,
 		greetingEnabled: _greetingEnabled,
-		wakeLockLists: _wakeLockLists,
 		wakeLockRecipes: _wakeLockRecipes,
 		wakeLockMeditation: _wakeLockMeditation
 	};
@@ -246,95 +188,6 @@ export const userSettings = {
 	set lang(v: Locale) { _lang = v; scheduleSave({ lang: v }); },
 	get timeZone() { return _timeZone; },
 	set timeZone(v: string) { _timeZone = v; scheduleSave({ timeZone: v }); },
-
-	get categorySortEnabled() { return _categorySortEnabled; },
-	set categorySortEnabled(v: boolean) { _categorySortEnabled = v; scheduleSave({ categorySortEnabled: v }); },
-
-	get categoryOrder() { return _categoryOrder; },
-	setCategoryOrder(order: string[]) {
-		if (order.length !== _categoryOrder.length || new Set(order).size !== order.length || order.some(key => !_categoryOrder.includes(key))) return;
-		_categoryOrder = [...order];
-		scheduleSave({ categoryOrder: [...order] });
-	},
-	moveUp(index: number) {
-		if (index <= 0) return;
-		const arr = [..._categoryOrder];
-		[arr[index - 1], arr[index]] = [arr[index], arr[index - 1]];
-		_categoryOrder = arr;
-		scheduleSave({ categoryOrder: arr });
-	},
-	moveDown(index: number) {
-		if (index >= _categoryOrder.length - 1) return;
-		const arr = [..._categoryOrder];
-		[arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
-		_categoryOrder = arr;
-		scheduleSave({ categoryOrder: arr });
-	},
-
-	// Per-list category settings
-	getListCategorySettings(listId: string): ListCategorySettings | null {
-		return _listCategorySettings[listId] ?? null;
-	},
-	setListCategorySettings(listId: string, settings: ListCategorySettings) {
-		_listCategorySettings = { ..._listCategorySettings, [listId]: settings };
-		scheduleSave({ listCategorySettings: { [listId]: settings } });
-	},
-	clearListCategorySettings(listId: string) {
-		const next = { ..._listCategorySettings };
-		delete next[listId];
-		_listCategorySettings = next;
-		scheduleSave({ listCategorySettings: { [listId]: null } });
-	},
-	moveListCategoryUp(listId: string, index: number) {
-		const s = _listCategorySettings[listId];
-		if (!s || index <= 0) return;
-		const arr = [...s.order];
-		[arr[index - 1], arr[index]] = [arr[index], arr[index - 1]];
-		_listCategorySettings = { ..._listCategorySettings, [listId]: { ...s, order: arr } };
-		scheduleSave({ listCategorySettings: { [listId]: { ...s, order: arr } } });
-	},
-	moveListCategoryDown(listId: string, index: number) {
-		const s = _listCategorySettings[listId];
-		if (!s || index >= s.order.length - 1) return;
-		const arr = [...s.order];
-		[arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
-		_listCategorySettings = { ..._listCategorySettings, [listId]: { ...s, order: arr } };
-		scheduleSave({ listCategorySettings: { [listId]: { ...s, order: arr } } });
-	},
-
-	// Location navigation
-	get locationNavEnabled() { return _locationNavEnabled; },
-	set locationNavEnabled(v: boolean) { _locationNavEnabled = v; scheduleSave({ locationNavEnabled: v }); },
-
-	isListLocationDisabled(listId: string): boolean {
-		return _listLocationDisabled.includes(listId);
-	},
-	setListLocationDisabled(listId: string, disabled: boolean) {
-		if (disabled) {
-			if (!_listLocationDisabled.includes(listId)) {
-				_listLocationDisabled = [..._listLocationDisabled, listId];
-			}
-		} else {
-			_listLocationDisabled = _listLocationDisabled.filter(id => id !== listId);
-		}
-		scheduleSave({ listLocationDisabled: _listLocationDisabled });
-	},
-
-	// Item layout
-	get itemLayout() { return _itemLayout; },
-	set itemLayout(v: 'grid' | 'list') { _itemLayout = v; scheduleSave({ itemLayout: v }); },
-
-	// Show all checked items (default: false = limit to 16)
-	get showAllCheckedItems() { return _showAllCheckedItems; },
-	set showAllCheckedItems(v: boolean) { _showAllCheckedItems = v; scheduleSave({ showAllCheckedItems: v }); },
-
-	// Show favourite indicator dot on tiles/rows (default: true)
-	get showFavoriteIndicator() { return _showFavoriteIndicator; },
-	set showFavoriteIndicator(v: boolean) { _showFavoriteIndicator = v; scheduleSave({ showFavoriteIndicator: v }); },
-
-	// Show supplement tracker tab in navigation (default: true)
-	get showSupplementTracker() { return _showSupplementTracker; },
-	set showSupplementTracker(v: boolean) { _showSupplementTracker = v; scheduleSave({ showSupplementTracker: v }); },
 
 	// Show recipes tab in navigation (default: true)
 	get showRecipes() { return _showRecipes; },
@@ -409,8 +262,6 @@ export const userSettings = {
 	set hiddenMoodTags(v: string[]) { _hiddenMoodTags = v; scheduleSave({ hiddenMoodTags: v }); },
 	get greetingEnabled() { return _greetingEnabled; },
 	set greetingEnabled(v: boolean) { _greetingEnabled = v; scheduleSave({ greetingEnabled: v }); },
-	get wakeLockLists() { return _wakeLockLists; },
-	set wakeLockLists(v: boolean) { _wakeLockLists = v; scheduleSave({ wakeLockLists: v }); },
 	get wakeLockRecipes() { return _wakeLockRecipes; },
 	set wakeLockRecipes(v: boolean) { _wakeLockRecipes = v; scheduleSave({ wakeLockRecipes: v }); },
 	get wakeLockMeditation() { return _wakeLockMeditation; },
@@ -434,19 +285,9 @@ export const userSettings = {
 };
 
 function applySettings(settings: UserSettings) {
-	const merged = merge(settings);
-	_lang = merged.lang;
+	_lang = settings.lang ?? DEFAULT_SETTINGS.lang;
 	_timeZone = settings.timeZone ?? '';
-	_categorySortEnabled = merged.categorySortEnabled;
-	_categoryOrder = merged.categoryOrder;
-	_listCategorySettings = settings.listCategorySettings ?? {};
 	_shortcuts = normalizeShortcuts(settings.shortcuts);
-	_locationNavEnabled = settings.locationNavEnabled ?? false;
-	_listLocationDisabled = settings.listLocationDisabled ?? [];
-	_itemLayout = settings.itemLayout ?? 'grid';
-	_showAllCheckedItems = settings.showAllCheckedItems ?? false;
-	_showFavoriteIndicator = settings.showFavoriteIndicator ?? true;
-	_showSupplementTracker = settings.showSupplementTracker ?? true;
 	_showRecipes = settings.showRecipes ?? true;
 	_theme = settings.theme ?? 'system';
 	_colorScheme = settings.colorScheme ?? 'crimson';
@@ -480,7 +321,6 @@ function applySettings(settings: UserSettings) {
 	_aiOpenaiModel = settings.aiOpenaiModel ?? 'gpt-4o-mini';
 	_hiddenMoodTags = settings.hiddenMoodTags ?? [];
 	_greetingEnabled = settings.greetingEnabled ?? true;
-	_wakeLockLists = settings.wakeLockLists ?? true;
 	_wakeLockRecipes = settings.wakeLockRecipes ?? true;
 	_wakeLockMeditation = settings.wakeLockMeditation ?? true;
 }

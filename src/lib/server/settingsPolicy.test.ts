@@ -15,6 +15,6 @@ describe('settings policy', () => {
 	it('rejects values of the wrong type', () => {
 		expect(enforceSettingsPolicy({ waterGoalMl: '2000' })).toMatch(/waterGoalMl/);
 		expect(enforceSettingsPolicy({ shortcuts: {} })).toMatch(/shortcuts/);
-		expect(enforceSettingsPolicy({ waterGoalMl: 2500, theme: 'dark', listCategorySettings: { a: null } })).toBeNull();
+		expect(enforceSettingsPolicy({ waterGoalMl: 2500, theme: 'dark', caffeineCustomAmounts: { espresso: 40 } })).toBeNull();
 	});
 });

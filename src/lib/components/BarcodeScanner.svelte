@@ -10,32 +10,19 @@
 		getSupportedFormats(): Promise<string[]>;
 	}
 
-	let { onFound, onClose, rawMode = false }: {
+	// Returns the raw barcode; the caller (nutrition) looks the product up itself.
+	let { onFound, onClose }: {
 		onFound: (value: string) => void;
 		onClose: () => void;
-		rawMode?: boolean;
 	} = $props();
 
-	type ScanPhase = 'requesting' | 'scanning' | 'loading' | 'feedback' | 'not_found' | 'denied' | 'error';
+	type ScanPhase = 'requesting' | 'scanning' | 'feedback' | 'denied' | 'error';
 
 	let phase = $state<ScanPhase>('requesting');
 	let feedbackText = $state('');
 	let videoEl = $state<HTMLVideoElement | null>(null);
 	let stream = $state<MediaStream | null>(null);
 	let isOnline = $state(typeof navigator !== 'undefined' ? navigator.onLine : true);
-
-	// Pro kürzlich verarbeitetem Code: Zeitpunkt + ob er hinzugefügt wurde.
-	// - hinzugefügte Codes (added) → bei erneuter Sicht „schon hinzugefügt" zeigen.
-	// - „nicht gefunden"-Codes (z.B. Fehl-Lesungen der Kamera) → still merken, damit
-	//   sie nicht ständig neu abgefragt werden und „nicht gefunden" wiederholt aufblitzt.
-	// Jeder Code bleibt gesperrt, solange er im Bild ist, plus 3 s Nachlauf. So schalten
-	// sich mehrere Codes nicht gegenseitig frei. Echtes Nachscannen klappt nach der
-	// kurzen Sperre wieder; transiente OFF-Fehler fängt schon der Server-Retry ab.
-	const handledCodes = new Map<string, { at: number; added: boolean }>();
-	const DEDUP_WINDOW = 3000;
-	let pauseStart = 0;
-	let duplicateHint = $state(false);
-	let duplicateTimer: ReturnType<typeof setTimeout> | null = null;
 
 	$effect(() => {
 		function setOnline() { isOnline = true; }
@@ -154,19 +141,8 @@
 					return; // erste Lesung – auf Bestätigung warten
 				}
 
-				const entry = handledCodes.get(result);
-				if (entry && now - entry.at < DEDUP_WINDOW) {
-					// Bereits hinzugefügter Code → ignorieren. Zeitstempel mitziehen,
-					// damit er gesperrt bleibt, solange er sichtbar ist.
-					entry.at = now;
-					if (entry.added) showDuplicateHint();
-					return; // weiterscannen, nicht erneut hinzufügen
-				}
-				// Nicht gesperrt → verarbeiten. Gesperrt wird erst bei ERFOLG (siehe resumeScanning).
-				duplicateHint = false;
-				pauseStart = now; // ab hier pausiert das Scannen (Lookup + Häkchen)
 				active = false;
-				void handleBarcode(result);
+				handleBarcode(result);
 			}).catch(() => { frameScanning = false; });
 		}
 
@@ -183,62 +159,14 @@
 		stream = null;
 	}
 
-	// Zurück ins Scannen. `handledCode` = gerade verarbeiteter Code, `added` = ob er
-	// hinzugefügt wurde (added-Codes zeigen später „schon hinzugefügt", not-found-Codes
-	// werden still gemerkt). Während der Pause (Lookup + Häkchen) kann gar nicht gescannt
-	// werden, also darf diese Zeit nicht gegen bestehende Sperren zählen –
-	// deshalb alle Zeitstempel um die Pausendauer nach vorne schieben (= Uhr anhalten).
-	function resumeScanning(handledCode?: string, added = false) {
-		const now = Date.now();
-		const delta = now - pauseStart;
-		// Pause anhalten: bestehende Eintraege um die Pausendauer nach vorne schieben
-		for (const e of handledCodes.values()) e.at += delta;
-		if (handledCode) handledCodes.set(handledCode, { at: now, added });
-		// alte Eintraege aufraeumen, damit die Map nicht unbegrenzt waechst
-		for (const [c, e] of handledCodes) if (now - e.at >= DEDUP_WINDOW) handledCodes.delete(c);
-		phase = 'scanning';
-	}
-
-	async function handleBarcode(code: string) {
-		if (rawMode) {
-			// rawMode (z.B. Nutrition) schließt den Scanner sofort selbst → nicht sperren.
-			onFound(code);
-			feedbackText = code;
-			phase = 'feedback';
-			setTimeout(() => resumeScanning(), 1200);
-			return;
-		}
-		phase = 'loading';
-		try {
-			const res = await fetch(`/api/barcode/${encodeURIComponent(code)}`);
-			const data = await res.json();
-			if (data.name) {
-				onFound(data.name);
-				feedbackText = data.name;
-				phase = 'feedback';
-				setTimeout(() => resumeScanning(code, true), 1500); // gefunden+hinzugefügt → sperren
-			} else {
-				phase = 'not_found';
-				setTimeout(() => resumeScanning(code, false), 2000); // kurz merken, damit "nicht gefunden" nicht staendig neu aufblitzt
-			}
-		} catch {
-			if (!navigator.onLine) {
-				resumeScanning();
-			} else {
-				phase = 'not_found';
-				setTimeout(() => resumeScanning(code, false), 2000);
-			}
-		}
-	}
-
-	function showDuplicateHint() {
-		duplicateHint = true;
-		if (duplicateTimer) clearTimeout(duplicateTimer);
-		duplicateTimer = setTimeout(() => { duplicateHint = false; }, 1200);
+	function handleBarcode(code: string) {
+		onFound(code);
+		feedbackText = code;
+		phase = 'feedback';
+		setTimeout(() => { phase = 'scanning'; }, 1200);
 	}
 
 	function handleClose() {
-		if (duplicateTimer) clearTimeout(duplicateTimer);
 		stopCamera();
 		onClose();
 	}
@@ -294,7 +222,7 @@
 	</button>
 
 	<!-- Retikel -->
-	{#if phase === 'scanning' || phase === 'loading' || phase === 'feedback' || phase === 'not_found'}
+	{#if phase === 'scanning' || phase === 'feedback'}
 		<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
 			<div class="relative" style="width: 76%; aspect-ratio: 2 / 1">
 				<div class="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-white rounded-tl-md"></div>
@@ -316,20 +244,7 @@
 			<div class="w-8 h-8 rounded-full border-2 border-white/30 border-t-white animate-spin"></div>
 
 		{:else if phase === 'scanning'}
-			{#if duplicateHint}
-				<div class="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold"
-				     style="background-color: rgba(255,255,255,0.22); color: white">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-						<polyline points="20 6 9 17 4 12"/>
-					</svg>
-					{t.barcode_duplicate}
-				</div>
-			{:else}
-				<p class="text-white text-sm font-medium opacity-80">{t.barcode_scan}</p>
-			{/if}
-
-		{:else if phase === 'loading'}
-			<div class="w-6 h-6 rounded-full border-2 border-white/30 border-t-white animate-spin"></div>
+			<p class="text-white text-sm font-medium opacity-80">{t.barcode_scan}</p>
 
 		{:else if phase === 'feedback'}
 			<div class="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold"
@@ -338,17 +253,6 @@
 					<polyline points="20 6 9 17 4 12"/>
 				</svg>
 				{feedbackText} {t.barcode_added}
-			</div>
-
-		{:else if phase === 'not_found'}
-			<div class="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold"
-			     style="background-color: rgba(239, 68, 68, 0.9); color: white">
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-					<circle cx="12" cy="12" r="10"/>
-					<line x1="12" y1="8" x2="12" y2="12"/>
-					<line x1="12" y1="16" x2="12.01" y2="16"/>
-				</svg>
-				{t.barcode_not_found}
 			</div>
 
 		{:else if phase === 'denied'}

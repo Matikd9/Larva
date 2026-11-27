@@ -1,10 +1,8 @@
 // Push clicks arrive through the persistent IDB mailbox. Mount, foreground,
 // focus/pageshow and the worker's nudge all check it; polling also covers delayed
-// writes after iOS suspension. A push target takes priority for that foreground
-// visit, while ordinary app openings still check the current location immediately.
+// writes after iOS suspension.
 
 import { consumePendingDeeplink, setPendingDeeplink } from '#lib/pendingDeeplink';
-import { findGeofenceMatch, resetLocationNavSession } from '#lib/locationNav';
 import { drainPendingMutations } from '#lib/sync/manager';
 import { refreshActiveUserSettings } from '#lib/userSettings.svelte';
 
@@ -14,24 +12,13 @@ export function initResumeOrchestrator() {
 	let navigation = Promise.resolve();
 	let mailboxRead: Promise<boolean> | null = null;
 	let watching = false;
-	let resumeRevision = 0;
-	let intentRevision = 0;
-	let hasExplicitTarget = false;
 
-	function markExplicitTarget() {
-		hasExplicitTarget = true;
-		intentRevision++;
-	}
-
-	// Serialize navigations instead of discarding a consumed push target when a
-	// location navigation is already running. Check location eligibility again
-	// when its queued navigation actually starts.
-	function navigateTo(url: string, allowed = () => true) {
+	// Serialize navigations so a second push target never overtakes the first.
+	function navigateTo(url: string) {
 		const next = navigation.catch(() => {}).then(async () => {
-			if (!allowed()) return;
 			if (location.pathname + location.search !== url) {
 				const { goto } = await import('$app/navigation');
-				if (allowed()) await goto(url);
+				await goto(url);
 			}
 		});
 		navigation = next;
@@ -39,13 +26,11 @@ export function initResumeOrchestrator() {
 	}
 
 	function readMailbox(): Promise<boolean> {
-		// Foreground and focus often fire together. Share the read and its outcome
-		// so another resume cannot start GPS while a push navigation is pending.
+		// Foreground and focus often fire together; share the read and its outcome.
 		if (mailboxRead) return mailboxRead;
 		mailboxRead = (async () => {
 			const url = await consumePendingDeeplink();
 			if (!url) return false;
-			markExplicitTarget();
 			try {
 				await navigateTo(url);
 			} catch {
@@ -79,19 +64,7 @@ export function initResumeOrchestrator() {
 	}
 
 	async function handleResume() {
-		const resume = ++resumeRevision;
-		// Cold notification launches (and explicit shortcuts) already carry their
-		// action in the URL, even if the mailbox write has not arrived yet.
-		if (new URLSearchParams(location.search).has('action')) markExplicitTarget();
-		const intent = intentRevision;
-		const mayUseLocation = () => !hasExplicitTarget && resume === resumeRevision && intent === intentRevision;
 		if (await tryDeeplinkNow()) return;
-		if (mayUseLocation()) {
-			const matchId = await findGeofenceMatch();
-			if (matchId && mayUseLocation()) {
-				await navigateTo(`/listen/${matchId}`, mayUseLocation);
-			}
-		}
 		void refreshActiveUserSettings();
 	}
 
@@ -99,17 +72,10 @@ export function initResumeOrchestrator() {
 
 	let lastResumeAt = 0;
 	document.addEventListener('visibilitychange', () => {
-		if (document.visibilityState !== 'visible') {
-			// The next normal opening should use GPS again. Invalidate location
-			// results from the foreground visit that just ended.
-			hasExplicitTarget = false;
-			resumeRevision++;
-			return;
-		}
+		if (document.visibilityState !== 'visible') return;
 		const now = Date.now();
 		if (now - lastResumeAt < 600) return;
 		lastResumeAt = now;
-		resetLocationNavSession();
 		void handleResume();
 	});
 
@@ -117,11 +83,7 @@ export function initResumeOrchestrator() {
 	window.addEventListener('pageshow', () => void tryDeeplinkNow());
 	if ('serviceWorker' in navigator) {
 		navigator.serviceWorker.addEventListener('message', (event: MessageEvent) => {
-			if (event.data?.type !== 'deeplink-nudge') return;
-			// Set intent before reading IDB: focus/visibility can arrive while the
-			// read is still pending, or while iOS finishes a delayed mailbox write.
-			markExplicitTarget();
-			void tryDeeplinkNow();
+			if (event.data?.type === 'deeplink-nudge') void tryDeeplinkNow();
 		});
 	}
 }

@@ -7,6 +7,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import { getUserLang, sendPushToUser } from '#lib/server/pushNotifications';
 import { randomUUID } from 'crypto';
 import * as m from '#lib/paraglide/messages';
+import { checkRateLimit } from '#lib/server/loginRateLimit';
 
 export const POST: RequestHandler = async (event) => {
 	const { error, user } = authGuard(event);
@@ -25,6 +26,8 @@ export const POST: RequestHandler = async (event) => {
 	}
 	const { username } = body;
 	if (!username?.trim()) return Response.json({ error: 'Benutzername erforderlich' }, { status: 400 });
+	// "User not found" stays explicit so typos are visible; the limit stops probing for usernames.
+	if (!checkRateLimit(`share:${user!.id}`, 20)) return Response.json({ error: 'rate_limited' }, { status: 429 });
 
 	try {
 		const target = db.select().from(users)

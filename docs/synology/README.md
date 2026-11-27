@@ -127,9 +127,9 @@ password in Groly's settings. Groly accounts are separate from DSM accounts.
 
 Before relying on the installation, check that you can:
 
-- Create a shopping list and add an item.
+- Log a meal on the Nutrition home screen.
 - Upload an image to a recipe and view it again.
-- Stop and start the project without losing the list or image.
+- Stop and start the project without losing the meal or image.
 - Open Groly on your phone through the same HTTPS address and install the PWA.
 
 HTTPS is required for offline mode, PWA installation, push notifications, barcode

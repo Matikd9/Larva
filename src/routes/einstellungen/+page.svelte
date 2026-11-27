@@ -19,7 +19,7 @@
 
 	let { data } = $props();
 
-	let openedGroups = $state({ general: false, visibility: false, display: false, shopping: false, notifications: false, account: false, ai: false });
+	let openedGroups = $state({ general: false, visibility: false, display: false, notifications: false, account: false, ai: false });
 	snapshot({
 		id: 'settings-groups',
 		capture: () => ({ ...openedGroups }),
@@ -31,16 +31,14 @@
 		const anchors: Record<string, keyof typeof openedGroups> = {
 			'schnellzugriff': 'general', 'general-title': 'general',
 			'visibility-title': 'visibility', 'app-icon': 'display', 'display-title': 'display',
-			'kategorien-sortieren': 'shopping', 'shopping-lists-title': 'shopping',
 			'notifications-location-title': 'notifications', 'account-title': 'account'
 		};
-		const locationRequested = page.url.searchParams.get('expand') === 'location';
-		const group = locationRequested ? 'notifications' : anchors[target];
+		const group = anchors[target];
 		if (!group) return;
 		openedGroups[group] = true;
 		void tick().then(() => {
 			if (page.url.hash !== hash) return;
-			document.getElementById(locationRequested ? 'notifications-location-title' : target)?.scrollIntoView({ block: 'nearest' });
+			document.getElementById(target)?.scrollIntoView({ block: 'nearest' });
 		});
 	});
 
@@ -150,7 +148,6 @@
 		'supplement-catalog.csv'
 	);
 	let wakeLockOpen = $state(false);
-	let sharedListsOpen = $state(false);
 	let showPushPrompt = $state(false);
 
 	// Push Notifications
@@ -289,27 +286,6 @@
 	$effect(() => { initPushState(); });
 
 	const mustChange = false;
-
-	type SharedList = { id: string; name: string; ownerUsername: string | null };
-	let sharedLists = $state<SharedList[]>([]);
-
-	async function loadSharedLists() {
-		try {
-			const res = await fetch('/api/lists');
-			if (!res.ok) return;
-			const json = await res.json();
-			const all = json?.lists ?? json;
-			sharedLists = all.filter((l: { isOwner: boolean }) => !l.isOwner);
-		} catch { /* ignore */ }
-	}
-
-	async function leaveList(listId: string) {
-		if (!data.user?.id) return;
-		const res = await fetch(`/api/lists/${listId}/members/${data.user.id}`, { method: 'DELETE' });
-		if (res.ok) sharedLists = sharedLists.filter(l => l.id !== listId);
-	}
-
-	$effect(() => { loadSharedLists(); });
 
 	async function acceptPushPrompt() {
 		await subscribePush();
@@ -477,7 +453,6 @@
 					{#if wakeLockOpen}
 						<div id="screen-on-options" class="pb-2">
 							<p class="px-5 pb-2 text-xs leading-relaxed" style="color: var(--color-on-surface-variant)">{t.settings_keep_screen_on_desc}</p>
-							<SettingsToggleRow label={t.settings_group_shopping_lists} checked={userSettings.wakeLockLists} onchange={() => userSettings.wakeLockLists = !userSettings.wakeLockLists} />
 							<SettingsToggleRow label={t.settings_recipes_section} checked={userSettings.wakeLockRecipes} onchange={() => userSettings.wakeLockRecipes = !userSettings.wakeLockRecipes} />
 							<SettingsToggleRow label={t.meditation_title} checked={userSettings.wakeLockMeditation} onchange={() => userSettings.wakeLockMeditation = !userSettings.wakeLockMeditation} />
 						</div>
@@ -496,15 +471,6 @@
 					onchange={() => { userSettings.showRecipes = !userSettings.showRecipes; }}
 				>
 					{#snippet icon()}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>{/snippet}
-				</SettingsToggleRow>
-
-				<SettingsToggleRow
-					label={t.settings_supplement_section}
-					description={t.settings_supplement_tab_desc}
-					checked={userSettings.showSupplementTracker}
-					onchange={() => { userSettings.showSupplementTracker = !userSettings.showSupplementTracker; }}
-				>
-					{#snippet icon()}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 8.4L19.2 8.4A3.6 3.6 0 0 1 19.2 15.6L4.8 15.6A3.6 3.6 0 0 1 4.8 8.4Z" fill="none" stroke-width="1.8" stroke-linejoin="round"/><line x1="12" y1="8.4" x2="12" y2="15.6" stroke-width="0.85" stroke-linecap="round"/></svg>{/snippet}
 				</SettingsToggleRow>
 
 				<SettingsToggleRow
@@ -623,58 +589,9 @@
 			</div>
 		</SettingsGroup>
 
-		<SettingsGroup id="shopping-lists" label={t.settings_group_shopping_lists} bind:open={openedGroups.shopping}>
-			{#snippet icon()}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3h6v2m-6 6h6m-6 4h6m-6 4h3"/></svg>{/snippet}
-			<div class="settings-surface">
-				<SettingsToggleRow
-					label={t.settings_layout_section}
-					description={t.settings_list_view_summary}
-					checked={userSettings.itemLayout === 'list'}
-					onchange={() => { userSettings.itemLayout = userSettings.itemLayout === 'list' ? 'grid' : 'list'; }}
-				>
-					{#snippet icon()}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>{/snippet}
-				</SettingsToggleRow>
-
-				<div id="kategorien-sortieren">
-					<div class="settings-category-header">
-						<a class="settings-category-open" href="/einstellungen/kategorien">
-							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
-							<span class="settings-category-label">{t.settings_category_sorting}</span>
-							<span class="settings-category-affordance" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" /></svg></span>
-						</a>
-						<button type="button" role="switch" aria-checked={userSettings.categorySortEnabled} aria-label={t.settings_category_sorting} class="settings-category-switch" onclick={() => userSettings.categorySortEnabled = !userSettings.categorySortEnabled}>
-							<span class="h-5 w-10 rounded-full border" style="border-color: {userSettings.categorySortEnabled ? 'var(--color-primary)' : 'var(--color-outline-variant)'}; background-color: {userSettings.categorySortEnabled ? 'var(--color-primary)' : 'var(--color-surface-container)'}" aria-hidden="true"></span>
-						</button>
-					</div>
-				</div>
-
-				<SettingsToggleRow
-					label={t.settings_favorite_indicator}
-					description={t.settings_favorite_indicator_desc}
-					checked={userSettings.showFavoriteIndicator}
-					onchange={() => { userSettings.showFavoriteIndicator = !userSettings.showFavoriteIndicator; }}
-				>
-					{#snippet icon()}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>{/snippet}
-				</SettingsToggleRow>
-
-				<SettingsToggleRow
-					label={t.settings_show_all_checked_section}
-					description={t.settings_checked_items_summary}
-					checked={userSettings.showAllCheckedItems}
-					onchange={() => { userSettings.showAllCheckedItems = !userSettings.showAllCheckedItems; }}
-				>
-					{#snippet icon()}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>{/snippet}
-				</SettingsToggleRow>
-			</div>
-		</SettingsGroup>
-
-		<SettingsGroup id="notifications-location" label={t.settings_group_notifications_location} bind:open={openedGroups.notifications}>
+		<SettingsGroup id="notifications-location" label={t.settings_push_notifications} bind:open={openedGroups.notifications}>
 			{#snippet icon()}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M10 21h4"/></svg>{/snippet}
 			<div class="settings-surface">
-
-				<SettingsToggleRow label={t.settings_location_detection} infoInitiallyOpen={page.url.searchParams.get('expand') === 'location'} description={t.settings_location_description} checked={userSettings.locationNavEnabled} onchange={() => userSettings.locationNavEnabled = !userSettings.locationNavEnabled}>
-					{#snippet icon()}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>{/snippet}
-				</SettingsToggleRow>
 
 				{#if pushSupported}
 					<div>
@@ -708,52 +625,6 @@
 					</div>
 				{/if}
 
-				<!-- Geteilte Listen -->
-				<div>
-					<button
-						onclick={() => sharedListsOpen = !sharedListsOpen}
-						class="w-full flex items-center justify-between px-5 py-2.5"
-					>
-						<div class="flex items-center gap-3">
-							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-							<span class="font-medium text-sm" style="color: var(--color-on-surface)">{currentLang() === 'en' ? 'Shared with me' : 'Geteilte Listen'}</span>
-						</div>
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-outline)"
-						     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-						     style="transform: rotate({sharedListsOpen ? 90 : 0}deg); transition: transform 0.2s">
-							<polyline points="9 18 15 12 9 6"/>
-						</svg>
-					</button>
-					{#if sharedListsOpen}
-						<div class="px-5 pb-5">
-							{#if sharedLists.length === 0}
-								<p class="text-sm" style="color: var(--color-on-surface-variant)">
-									{currentLang() === 'en' ? 'No lists shared with you.' : 'Keine Listen mit dir geteilt.'}
-								</p>
-							{:else}
-								<div class="settings-shared-lists">
-									{#each sharedLists as sl (sl.id)}
-										<div class="settings-shared-row flex items-center gap-3 py-2.5">
-											<div class="flex-1 min-w-0">
-												<div class="text-sm font-medium truncate" style="color: var(--color-on-surface)">{sl.name}</div>
-												{#if sl.ownerUsername}
-													<div class="text-xs truncate" style="color: var(--color-on-surface-variant)">{sl.ownerUsername}</div>
-												{/if}
-											</div>
-											<button
-												onclick={() => leaveList(sl.id)}
-												class="text-xs font-semibold px-3 py-1.5 rounded-full flex-shrink-0"
-												style="background-color: color-mix(in srgb, var(--color-error) 15%, transparent); color: var(--color-error)"
-											>
-												{currentLang() === 'en' ? 'Leave' : 'Verlassen'}
-											</button>
-										</div>
-									{/each}
-								</div>
-							{/if}
-						</div>
-					{/if}
-				</div>
 			</div>
 		</SettingsGroup>
 
@@ -1068,14 +939,6 @@
 	.settings-quick-access span { flex: 1; }
 	.settings-quick-access svg { flex: none; }
 	.settings-quick-access:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -3px; border-radius: 12px; }
-	.settings-category-header { display: flex; align-items: center; padding: 0 18px 0 20px; }
-	.settings-category-open { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; min-height: 44px; text-align: left; font-size: 14px; font-weight: 550; color: var(--color-on-surface); }
-	.settings-category-open > svg { flex: none; color: var(--color-on-surface-variant); }
-	.settings-category-open:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -3px; border-radius: 12px; }
-	.settings-category-label { flex: 1; }
-	.settings-category-affordance { display: flex; align-items: center; justify-content: center; width: 40px; flex: none; color: var(--color-on-surface-variant); }
-	.settings-category-switch { display: flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; flex: none; }
-	.settings-shared-row + .settings-shared-row { border-top: 1px solid var(--bubble-container-border); }
 	.settings-inline-status { margin: 0; padding: 0 20px 8px; font-size: 12px; line-height: 1.5; }
 	.settings-push-actions { padding: 0 20px; }
 	.settings-push-actions:has(button) { padding-bottom: 10px; }

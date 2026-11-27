@@ -97,7 +97,7 @@ Open your configured HTTPS URL and sign in with the initial administrator
 credentials. You can change the password in Groly's settings. Groly accounts are
 separate from QNAP accounts.
 
-Create a shopping list and a recipe with an uploaded image. Stop and start the
+Log a meal and create a recipe with an uploaded image. Stop and start the
 application, then check that both are still present. Also check your phone's
 HTTPS access and PWA installation.
 

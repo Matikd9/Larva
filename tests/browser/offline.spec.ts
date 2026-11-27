@@ -9,7 +9,7 @@ const image = process.env.GROLY_TEST_IMAGE;
 test.skip(!image, 'Set GROLY_TEST_IMAGE to a locally built production image');
 const docker = (...args: string[]) => execFileSync('docker', args, { encoding: 'utf8', timeout: 120_000 }).trim();
 
-type CachedRow = { id?: string; name?: string; quantityInfo?: string | null; isChecked?: boolean; favorites?: Array<{ name: string; quantityInfo?: string | null }> };
+type CachedRow = { id?: string; type?: string; amountMl?: number };
 async function rows(page: Page, store: string): Promise<CachedRow[]> {
 	return page.evaluate(store => new Promise<CachedRow[]>((resolve, reject) => {
 		const open = indexedDB.open('groly');
@@ -23,18 +23,12 @@ async function rows(page: Page, store: string): Promise<CachedRow[]> {
 	}), store);
 }
 
-test('offline checks and favorites survive reload; cached and uncached recipes have usable views', async ({ page, context, request, browser }) => {
+test('offline tracker logs survive reload and sync; cached and uncached recipes have usable views', async ({ page, context, request }) => {
 	const id = `groly-offline-${randomUUID().slice(0, 8)}`;
 	const volume = `${id}-data`;
 	const errors: string[] = [];
-	let desktop: Awaited<ReturnType<typeof browser.newContext>> | undefined;
-	let releaseHomeLists!: () => void;
-	const homeListsReady = new Promise<void>(resolve => { releaseHomeLists = resolve; });
 	page.on('pageerror', error => errors.push(error.message));
 	try {
-		// Exercise slow initial loading deliberately. URL/SW readiness does not
-		// mean the list catalog has finished loading or been saved in IndexedDB.
-		await page.route('**/api/lists', async route => { await homeListsReady; await route.continue(); }, { times: 1 });
 		docker('volume', 'create', volume);
 		docker('run', '-d', '--platform', 'linux/amd64', '--name', id, '-p', '127.0.0.1:3100:3000',
 			'--mount', `type=volume,src=${volume},dst=/app/data`, '-e', 'ADMIN_USERNAME=offline-bootstrap',
@@ -48,9 +42,10 @@ test('offline checks and favorites survive reload; cached and uncached recipes h
 		await page.locator('button[type="submit"]').click();
 		await expect(page).toHaveURL('http://127.0.0.1:3100/');
 		await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
-		releaseHomeLists();
-		await expect(page.getByText('Familie 🥦', { exact: true }).first()).toBeVisible();
-		await expect.poll(async () => (await rows(page, 'lists')).some(row => row.id === 'upgrade-list')).toBe(true);
+		// The home screen shows today's meals and the daily log with the seeded water entry.
+		await expect(page.getByText(de.nutrition_label, { exact: true }).first()).toBeVisible();
+		await expect(page.getByText(de.daily_log_title, { exact: true })).toBeVisible();
+		await expect.poll(async () => (await rows(page, 'waterLogs')).length).toBeGreaterThan(0);
 		// Create a catalog entry whose detail page has never been opened.
 		const created = await page.request.post('/api/recipes', { data: { title: 'Uncached recipe', servings: 2, ingredients: [], steps: [] } });
 		expect(created.status()).toBe(201);
@@ -61,51 +56,19 @@ test('offline checks and favorites survive reload; cached and uncached recipes h
 		await page.getByRole('button', { name: de.a11y_back, exact: true }).click();
 		await expect(page.getByText('Uncached recipe', { exact: true })).toBeVisible();
 		await expect.poll(async () => (await rows(page, 'recipes')).some(row => row.id === uncachedId)).toBe(true);
-		await page.goto('/listen/upgrade-list');
-		await expect(page.getByText('Hafermilch', { exact: true })).toBeVisible();
-		await expect.poll(async () => (await rows(page, 'userSettings')).some(row => row.favorites?.some((fav: { name: string }) => fav.name === 'Äpfel'))).toBe(true);
 		await expect.poll(async () => (await rows(page, 'pendingMutations')).length).toBe(0);
-		// A separate client needs the session only. Let it load its own settings
-		// from the server, avoiding hidden origin-page navigation while WebKit
-		// applies an unrelated copy of the phone's localStorage.
-		desktop = await browser.newContext();
-		await desktop.addCookies(await context.cookies());
-		const desktopPage = await desktop.newPage();
-		await desktopPage.goto('http://127.0.0.1:3100/listen/upgrade-list');
-		await expect(desktopPage.getByText('Hafermilch', { exact: true })).toBeVisible();
+
 		await context.setOffline(true);
-		await page.getByRole('button', { name: de.add, exact: true }).click();
-		await page.locator('[data-add-item-name]').fill('Offline checked item');
-		await page.locator('[data-add-item-name]').press('Enter');
-		await page.getByRole('button', { name: de.close, exact: true }).click();
-		await page.getByRole('button', { name: 'Offline checked item', exact: true }).click();
-		await expect.poll(async () => (await rows(page, 'items')).find(row => row.name === 'Offline checked item')?.isChecked).toBe(true);
-		// Favorites must be read from IndexedDB after the component is recreated.
+		// Log water offline from the home screen (the same entry a shortcut or reminder opens).
+		await page.goto('/?action=log-water');
+		await page.getByRole('button', { name: /\+200/ }).click();
+		await expect.poll(async () => (await rows(page, 'pendingMutations')).some(row => row.type === 'create_water_log')).toBe(true);
+		// After an offline reload, today's daily log comes from IndexedDB; meals say they could not load.
 		await page.reload();
-		await expect(page.getByText('Hafermilch', { exact: true })).toBeVisible();
-		await page.getByRole('button', { name: de.add, exact: true }).click();
-		await page.getByRole('button', { name: de.favorites_panel_toggle, exact: true }).click();
-		await page.getByRole('button', { name: /Äpfel/ }).click();
-		await expect.poll(async () => (await rows(page, 'items')).some(row => row.name === 'Äpfel' && row.quantityInfo === '500 g')).toBe(true);
-		await page.getByRole('button', { name: de.favorites_new, exact: true }).click();
-		await page.getByPlaceholder(de.item_name_label, { exact: true }).fill('Offline favorite');
-		await page.getByPlaceholder(de.item_name_label, { exact: true }).press('Enter');
-		await expect.poll(async () => (await rows(page, 'userSettings')).some(row => row.favorites?.some((fav: { name: string }) => fav.name === 'Offline favorite'))).toBe(true);
-		await page.getByRole('button', { name: de.close, exact: true }).last().click();
-		await page.locator('.fav-scroll').getByRole('button', { name: /Offline favorite/ }).click({ button: 'right' });
-		const favoriteEditor = page.getByRole('dialog', { name: de.favorites_edit, exact: true });
-		await favoriteEditor.getByPlaceholder(de.item_name_label, { exact: true }).fill('Edited offline favorite');
-		await favoriteEditor.getByPlaceholder(de.item_quantity_placeholder, { exact: true }).fill('2 packs');
-		await favoriteEditor.getByRole('button', { name: de.item_save, exact: true }).click();
-		await expect(favoriteEditor).toHaveCount(0);
-		await expect.poll(async () => (await rows(page, 'userSettings')).some(row => row.favorites?.some(fav => fav.name === 'Edited offline favorite' && fav.quantityInfo === '2 packs'))).toBe(true);
-		await page.locator('.fav-scroll').getByRole('button', { name: /Äpfel/ }).click({ button: 'right' });
-		await page.getByRole('button', { name: de.favorites_remove_action, exact: true }).click();
-		await page.getByRole('dialog', { name: 'Äpfel', exact: true }).getByRole('button', { name: de.favorites_remove_action, exact: true }).click();
-		await expect.poll(async () => (await rows(page, 'userSettings')).some(row => row.favorites?.some((fav: { name: string }) => fav.name === 'Äpfel'))).toBe(false);
-		await page.getByRole('button', { name: de.close, exact: true }).click();
-		await page.getByRole('button', { name: de.items_checked_label, exact: true }).click();
-		await expect(page.getByText('Offline checked item', { exact: true })).toBeVisible();
+		await expect(page.getByText(de.nutrition_load_error, { exact: true })).toBeVisible();
+		await expect(page.getByText(de.water_title, { exact: true }).first()).toBeVisible();
+		await expect.poll(async () => (await rows(page, 'waterLogs')).some(row => row.amountMl === 200)).toBe(true);
+
 		// Exercise client navigation into a cached recipe, not only a cached HTML reload.
 		await page.getByRole('button', { name: de.nav_recipes, exact: true }).click();
 		await page.getByText('Gemüsepfanne 🥦', { exact: true }).click();
@@ -138,29 +101,19 @@ test('offline checks and favorites survive reload; cached and uncached recipes h
 			await page.screenshot({ path: `test-results/${test.info().project.name}-offline-${scheme}.png`, fullPage: true });
 		}
 		await page.getByRole('link', { name: en.offline_home, exact: true }).click();
-		await expect(page.getByText('Familie 🥦', { exact: true }).first()).toBeVisible();
+		await expect(page.getByText(de.daily_log_title, { exact: true })).toBeVisible();
 		await page.goto(`/rezepte/${uncachedId}?cold-offline=2`);
 		await expect(page.locator('[data-offline-fallback]')).toBeVisible();
 		await page.getByRole('button', { name: 'EN', exact: true }).click();
 		await context.setOffline(false);
 		await page.getByRole('button', { name: en.offline_retry, exact: true }).click();
 		await expect(page.getByRole('heading', { name: 'Uncached recipe', exact: true })).toBeVisible();
+		// The queued water log reaches the server exactly once.
 		await expect.poll(async () => (await rows(page, 'pendingMutations')).length).toBe(0);
-		const serverItems = await (await page.request.get('/api/lists/upgrade-list/items')).json();
-		expect(serverItems.filter((row: { name: string }) => row.name === 'Offline checked item')).toHaveLength(1);
-		expect(serverItems.find((row: { name: string }) => row.name === 'Offline checked item').isChecked).toBe(true);
-		expect(serverItems.filter((row: { name: string }) => row.name === 'Äpfel')).toHaveLength(1);
-		// A second online client receives the checked state through actual SSE.
-		await desktopPage.getByRole('button', { name: de.items_checked_label, exact: true }).click();
-		await expect(desktopPage.getByText('Offline checked item', { exact: true })).toHaveClass(/line-through/);
-		const favorites = await (await page.request.get('/api/favorites')).json();
-		expect(favorites.filter((row: { name: string; quantityInfo: string }) => row.name === 'Edited offline favorite' && row.quantityInfo === '2 packs')).toHaveLength(1);
-		expect(favorites.some((row: { name: string }) => row.name === 'Offline favorite')).toBe(false);
-		expect(favorites.some((row: { name: string }) => row.name === 'Äpfel')).toBe(false);
+		const { logs } = await (await page.request.get(`/api/water-logs?from=0&to=${Date.now() + 86_400_000}`)).json();
+		expect(logs.filter((log: { amountMl: number }) => log.amountMl === 200)).toHaveLength(1);
 		expect(errors).toEqual([]);
 	} finally {
-		releaseHomeLists();
-		await desktop?.close();
 		docker('rm', '-f', id);
 		docker('volume', 'rm', volume);
 	}

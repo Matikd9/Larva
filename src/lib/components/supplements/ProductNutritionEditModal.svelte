@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { t } from '#lib/i18n.svelte';
+	import { t, ai_error_message } from '#lib/i18n.svelte';
 	import { userSettings } from '#lib/userSettings.svelte';
 	import ManageSheetShell from './ManageSheetShell.svelte';
 	import { type EssentialMicros } from '#lib/micronutrients';
@@ -533,9 +533,9 @@
 
 			if (!res.ok) {
 				if (data?.error === 'NO_API_KEY') {
-					aiErrorMsg = 'Configure your API key in Settings > Artificial Intelligence to use AI analysis.';
+					aiErrorMsg = t.ai_nutrition_no_api_key;
 				} else {
-					aiErrorMsg = data?.message || data?.error || `Server error (${res.status}).`;
+					aiErrorMsg = ai_error_message(data?.error);
 				}
 				return;
 			}

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	parseMicrosJson,
+	aggregateMicroCoverage,
 	stringifyMicrosJson,
 	scaleMicros,
 	addMicros,
@@ -155,5 +156,19 @@ describe('micronutrients utilities', () => {
 		expect(micros.monounsaturatedFat).toBe(5.8);
 		expect(micros.polyunsaturatedFat).toBe(3.2);
 		expect(micros.transFat).toBe(0.05);
+	});
+});
+
+describe('aggregateMicroCoverage', () => {
+	it('sums reported values and the kcal they describe, without treating missing data as zero', () => {
+		const { kcal, micros } = aggregateMicroCoverage([
+			{ kcal: 300, microsJson: JSON.stringify({ ironMg: 2, calciumMg: 100 }) },
+			{ kcal: 500, microsJson: JSON.stringify({ ironMg: 1 }) },
+			{ kcal: 200, microsJson: null }
+		]);
+		expect(kcal).toBe(1000);
+		expect(micros.ironMg).toEqual({ total: 3, coveredKcal: 800 });
+		expect(micros.calciumMg).toEqual({ total: 100, coveredKcal: 300 });
+		expect(micros.vitaminCMg).toBeUndefined();
 	});
 });

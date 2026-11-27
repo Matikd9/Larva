@@ -10,7 +10,6 @@
 		actions = null,
 		collapsed = false,
 		activeSection,
-		nutritionEnabled,
 		todayLogs = null,
 		historyControls = null
 	}: {
@@ -19,8 +18,7 @@
 		onBack?: (() => void) | null;
 		actions?: Snippet | null;
 		collapsed?: boolean;
-		activeSection: 'today' | 'history' | 'nutrition';
-		nutritionEnabled: boolean;
+		activeSection: 'home' | 'history';
 		todayLogs?: { supplementId: string; loggedAt: number }[] | null;
 		historyControls?: Snippet | null;
 	} = $props();
@@ -32,7 +30,7 @@
 			<AppHeader embedded {title} {onMenuOpen} {onBack} {actions} />
 		</div>
 	</div>
-	<TrackerSectionNav {activeSection} {nutritionEnabled} {todayLogs} {historyControls} />
+	<TrackerSectionNav {activeSection} {todayLogs} {historyControls} />
 </div>
 
 <style>

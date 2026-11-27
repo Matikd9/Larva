@@ -1870,7 +1870,7 @@
 </ManageSheetShell>
 
 {#if scannerOpen}
-	<BarcodeScanner rawMode onFound={onScan} onClose={() => (scannerOpen = false)} />
+	<BarcodeScanner onFound={onScan} onClose={() => (scannerOpen = false)} />
 {/if}
 
 {#if aiSheetOpen}

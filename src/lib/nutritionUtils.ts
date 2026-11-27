@@ -22,7 +22,8 @@ export type NutritionDietType = 'high-protein' | 'balanced' | 'low-carb' | 'keto
 
 export type NutritionTargetEstimate = {
 	bmr: number;
-	tdee: number;
+	tdee: number; // maintenance energy (BMR × activity)
+	targetKcal: number; // tdee adjusted for the goal (deficit or surplus)
 	protein: number;
 	fat: number;
 	carbs: number;
@@ -74,7 +75,10 @@ export function calculateNutritionTargets(input: {
 		carbs = Math.max(0, Math.round((targetKcal - protein * 4 - fat * 9) / 4));
 	}
 
-	return { bmr: Math.round(bmrRaw), tdee: targetKcal, protein, fat, carbs, fiber: 30 };
+	// Low targets with weight-based protein (keto, low-carb) can exceed the kcal target; trim protein to fit (rounding slack ignored).
+	if (protein * 4 + fat * 9 + carbs * 4 > targetKcal * 1.01) protein = Math.max(0, Math.floor((targetKcal - fat * 9 - carbs * 4) / 4));
+
+	return { bmr: Math.round(bmrRaw), tdee, targetKcal, protein, fat, carbs, fiber: 30 };
 }
 
 export function nextNutritionUseCount(current: number | null | undefined): number {

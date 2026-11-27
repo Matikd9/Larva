@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { seedUpgradeFixture } from '../../scripts/docker-fixtures.mjs';
 import de from '../../messages/de.json' with { type: 'json' };
+import en from '../../messages/en.json' with { type: 'json' };
 
 const image = process.env.GROLY_TEST_IMAGE;
 test.skip(!image, 'Set GROLY_TEST_IMAGE to the production candidate');
@@ -19,7 +20,8 @@ test('logout and account switching isolate cached data while preserving the orig
 		await page.locator('input[autocomplete="current-password"]').fill('Groly-upgrade-test-2026!');
 		await page.locator('button[type="submit"]').click();
 		await expect(page).toHaveURL('http://127.0.0.1:3100/');
-		await expect(page.getByText('Familie 🥦', { exact: true }).first()).toBeVisible();
+		// Nutrition is the home screen.
+		await expect(page.getByText(new RegExp(`^(${de.nutrition_label}|${en.nutrition_label})$`)).first()).toBeVisible();
 	}
 	const queued = () => page.evaluate(() => new Promise<Array<{ userId?: string }>>((resolve, reject) => {
 		const open = indexedDB.open('groly');
@@ -39,41 +41,34 @@ test('logout and account switching isolate cached data while preserving the orig
 		await expect.poll(async () => { try { return (await request.get('/api/health')).status(); } catch { return 0; } }).toBe(200);
 		execFileSync('docker', ['exec', '-i', name, 'node', '--input-type=module'], { input: `await (${seedUpgradeFixture.toString()})()` });
 		await login('upgrade-owner');
-		const listResponse = await page.request.post('/api/lists', { data: { name: 'Alice private list' } });
-		expect(listResponse.status()).toBe(201);
-		const listId = (await listResponse.json()).id;
 		// Page routing cannot intercept fetches handled by an active service worker.
 		// Reject in the page before the request reaches the worker, across navigations.
-		await page.addInitScript(({ listId }) => {
+		await page.addInitScript(() => {
 			const originalFetch = window.fetch.bind(window);
 			window.fetch = (input, init) => {
 				const url = new URL(input instanceof Request ? input.url : String(input), location.href);
 				const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-				if ((localStorage.getItem('groly_test_block_item') === '1' && method === 'POST' && url.pathname === `/api/lists/${listId}/items`)
+				if ((localStorage.getItem('groly_test_block_water') === '1' && method === 'POST' && url.pathname === '/api/water-logs')
 					|| (localStorage.getItem('groly_test_block_recipes') === '1' && method === 'GET' && url.pathname === '/api/recipes')) {
 					return Promise.reject(new TypeError('Simulated offline request'));
 				}
 				return originalFetch(input, init);
 			};
-		}, { listId });
+		});
 		const recipeResponse = await page.request.post('/api/recipes', { data: { title: 'Alice private recipe', servings: 2, ingredients: [], steps: [] } });
 		expect(recipeResponse.status()).toBe(201);
 		await page.goto('/rezepte');
 		await expect(page.getByText('Alice private recipe', { exact: true })).toBeVisible();
-		await page.goto('/');
-		await expect(page.getByText('Alice private list', { exact: true })).toBeVisible();
-		await page.goto(`/listen/${listId}`);
-		await page.evaluate(() => localStorage.setItem('groly_test_block_item', '1'));
-		await page.getByRole('button', { name: de.add, exact: true }).click();
-		await page.locator('[data-add-item-name]').fill('Alice pending item');
-		await page.locator('[data-add-item-name]').press('Enter');
+		// Log water offline through the shortcut deep link; the write stays queued for Alice.
+		await page.evaluate(() => localStorage.setItem('groly_test_block_water', '1'));
+		await page.goto('/?action=log-water');
+		await page.getByRole('button', { name: /\+100/ }).click();
 		await expect.poll(async () => (await queued()).some(row => row.userId === 'upgrade-owner')).toBe(true);
 		await page.goto('/einstellungen');
 		await page.getByRole('button', { name: de.menu_open, exact: true }).click();
 		await page.getByRole('button', { name: de.nav_logout, exact: true }).click();
 		await expect(page).toHaveURL('http://127.0.0.1:3100/login');
 		await login('upgrade-member');
-		await expect(page.getByText('Alice private list', { exact: true })).toHaveCount(0);
 		await page.evaluate(() => localStorage.setItem('groly_test_block_recipes', '1'));
 		await page.goto('/rezepte');
 		await expect(page.locator('.animate-spin')).toHaveCount(0);
@@ -85,12 +80,12 @@ test('logout and account switching isolate cached data while preserving the orig
 		await expect(page).toHaveURL('http://127.0.0.1:3100/login');
 		await page.evaluate(() => {
 			localStorage.removeItem('groly_test_block_recipes');
-			localStorage.removeItem('groly_test_block_item');
+			localStorage.removeItem('groly_test_block_water');
 		});
 		await login('upgrade-owner');
 		await expect.poll(async () => {
-			const items = await (await page.request.get(`/api/lists/${listId}/items`)).json();
-			return items.filter((item: { name: string }) => item.name === 'Alice pending item').length;
+			const { logs } = await (await page.request.get(`/api/water-logs?from=0&to=${Date.now() + 86_400_000}`)).json();
+			return logs.filter((log: { amountMl: number }) => log.amountMl === 100).length;
 		}).toBe(1);
 		await expect.poll(async () => (await queued()).length).toBe(0);
 		expect(errors).toEqual([]);

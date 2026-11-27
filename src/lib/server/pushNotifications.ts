@@ -1,7 +1,7 @@
 import webpush from 'web-push';
 import { db } from '#lib/db';
-import { pushSubscriptions, listMembers, listNotificationPrefs, lists, users } from '#lib/db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { pushSubscriptions } from '#lib/db/schema';
+import { eq } from 'drizzle-orm';
 import * as env from '$app/env/private';
 import { publicPushAgent } from './publicNetwork';
 
@@ -13,7 +13,6 @@ async function sendNotification(sub: { userId: string; endpoint: string; auth: s
 }
 
 type Lang = 'de' | 'en';
-type PayloadFn = (lang: Lang) => { title: string; body: string; url?: string };
 
 export function getUserLang(settings: string | null): Lang {
 	try {
@@ -33,82 +32,6 @@ function init() {
 		env.VAPID_PRIVATE_KEY
 	);
 	initialized = true;
-}
-
-function isNotificationsEnabled(listId: string, userId: string): boolean {
-	const pref = db
-		.select()
-		.from(listNotificationPrefs)
-		.where(and(eq(listNotificationPrefs.listId, listId), eq(listNotificationPrefs.userId, userId)))
-		.get();
-	// Wenn kein Eintrag: default enabled
-	return pref === undefined ? true : pref.enabled;
-}
-
-export async function sendPushToListMembers(
-	listId: string,
-	excludeUserId: string,
-	payloadFn: PayloadFn
-) {
-	init();
-	if (!initialized) return;
-
-	const list = db.select({ ownerId: lists.ownerId }).from(lists).where(eq(lists.id, listId)).get();
-	if (!list) return;
-
-	// Akzeptierte Mitglieder (non-owner) mit aktivierten list-level notifications
-	const members = db
-		.select({ userId: listMembers.userId })
-		.from(listMembers)
-		.where(
-			and(
-				eq(listMembers.listId, listId),
-				eq(listMembers.status, 'accepted'),
-				eq(listMembers.notificationsEnabled, true)
-			)
-		)
-		.all();
-
-	const candidateIds: string[] = members.map((m) => m.userId);
-
-	// Owner hinzufügen
-	candidateIds.push(list.ownerId);
-
-	// Auslöser und Duplikate entfernen, dann per-list pref prüfen
-	const recipientIds = [...new Set(candidateIds)]
-		.filter((id) => id !== excludeUserId)
-		.filter((id) => isNotificationsEnabled(listId, id));
-
-	if (recipientIds.length === 0) return;
-
-	const subs = db
-		.select({ sub: pushSubscriptions, settings: users.settings })
-		.from(pushSubscriptions)
-		.innerJoin(users, eq(pushSubscriptions.userId, users.id))
-		.where(inArray(pushSubscriptions.userId, recipientIds))
-		.all();
-
-	if (subs.length === 0) return;
-
-	const staleEndpoints: string[] = [];
-
-	await Promise.allSettled(
-		subs.map(async ({ sub, settings }) => {
-			const lang = getUserLang(settings);
-			try {
-				await sendNotification(sub, JSON.stringify(payloadFn(lang)));
-			} catch (err: unknown) {
-				const status = (err as { statusCode?: number })?.statusCode;
-				if (status === 410 || status === 404) {
-					staleEndpoints.push(sub.endpoint);
-				}
-			}
-		})
-	);
-
-	for (const endpoint of staleEndpoints) {
-		db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint)).run();
-	}
 }
 
 export async function sendPushToUser(

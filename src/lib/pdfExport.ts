@@ -174,7 +174,7 @@ function buildSupplementsSection(opts: ReportOptions, sections: ReportSections):
 
 	// Per-supplement adherence rows: name + quote + bar + pct
 	const rows = adherence.map((a) => {
-		const denom = a.planned > 0 ? a.planned : a.totalDays;
+		const denom = a.planned > 0 ? a.planned : a.countableDays;
 		const barWidth = 60;
 		const filled = Math.round((a.percent / 100) * barWidth);
 		return [
@@ -299,7 +299,7 @@ function buildTrackersSection(opts: ReportOptions): any[] {
 		rows.push(trackerRow(
 			tx(lang, 'Koffein', 'Caffeine'),
 			COLORS.caffeine,
-			`Ø ${Math.round(cs.avgPerDay)} mg · ${cs.min}–${cs.max} mg · ${cs.activeDays}/${cs.totalDays} ${tx(lang, 'Tage', 'days')}`,
+			`Ø ${Math.round(cs.avgPerDay)} mg · ${cs.min}–${cs.max} mg · ${cs.activeDays}/${cs.countableDays} ${tx(lang, 'Tage', 'days')}`,
 			cs.daily,
 			'mg',
 			days,
@@ -310,7 +310,7 @@ function buildTrackersSection(opts: ReportOptions): any[] {
 		rows.push(trackerRow(
 			tx(lang, 'Meditation', 'Meditation'),
 			COLORS.meditation,
-			`Ø ${Math.round(ms.avgPerDay)} min · ${ms.min}–${ms.max} min · ${ms.activeDays}/${ms.totalDays} ${tx(lang, 'Tage', 'days')}`,
+			`Ø ${Math.round(ms.avgPerDay)} min · ${ms.min}–${ms.max} min · ${ms.activeDays}/${ms.countableDays} ${tx(lang, 'Tage', 'days')}`,
 			ms.daily,
 			'min',
 			days,

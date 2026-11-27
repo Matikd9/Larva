@@ -62,6 +62,9 @@ function accountStrategy(userId: string, data = false) {
 	return new NetworkFirst({
 		cacheName: data ? dataCache(userId) : pageCache(userId),
 		networkTimeoutSeconds: 5,
+		// Pages read ?action= and ?date= in the browser, so a notification or shortcut link opened
+		// offline must fall back to the cached page of the same path. Loader data keeps exact URLs.
+		matchOptions: data ? undefined : { ignoreSearch: true },
 		plugins: [
 			{ cacheWillUpdate: async ({ response }) => response.status === 200 && !response.redirected && response.headers.get('X-Groly-User') === userId ? response : null },
 			new ExpirationPlugin({ maxEntries: data ? 30 : 20, maxAgeSeconds: 7 * 24 * 60 * 60 })

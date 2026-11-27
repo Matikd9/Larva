@@ -22,43 +22,6 @@ export const sessions = sqliteTable('sessions', {
 	createdAt: integer('created_at').notNull()
 });
 
-export const lists = sqliteTable('lists', {
-	id: text('id').primaryKey(),
-	name: text('name').notNull(),
-	description: text('description'),
-	iconId: text('icon_id'),
-	ownerId: text('owner_id')
-		.notNull()
-		.references(() => users.id, { onDelete: 'cascade' }),
-	locationLat: real('location_lat'),
-	locationLng: real('location_lng'),
-	locationName: text('location_name'),
-	createdAt: integer('created_at').notNull(),
-	updatedAt: integer('updated_at').notNull()
-});
-
-export const listMembers = sqliteTable('list_members', {
-	listId: text('list_id')
-		.notNull()
-		.references(() => lists.id, { onDelete: 'cascade' }),
-	userId: text('user_id')
-		.notNull()
-		.references(() => users.id, { onDelete: 'cascade' }),
-	permission: text('permission', { enum: ['read', 'write'] }).notNull().default('read'),
-	status: text('status', { enum: ['pending', 'accepted'] }).notNull().default('accepted'),
-	notificationsEnabled: integer('notifications_enabled', { mode: 'boolean' }).notNull().default(true)
-});
-
-export const listNotificationPrefs = sqliteTable('list_notification_prefs', {
-	listId: text('list_id')
-		.notNull()
-		.references(() => lists.id, { onDelete: 'cascade' }),
-	userId: text('user_id')
-		.notNull()
-		.references(() => users.id, { onDelete: 'cascade' }),
-	enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true)
-});
-
 export const pushSubscriptions = sqliteTable('push_subscriptions', {
 	id: text('id').primaryKey(),
 	userId: text('user_id')
@@ -68,21 +31,6 @@ export const pushSubscriptions = sqliteTable('push_subscriptions', {
 	auth: text('auth').notNull(),
 	p256dh: text('p256dh').notNull(),
 	createdAt: integer('created_at').notNull()
-});
-
-export const items = sqliteTable('items', {
-	id: text('id').primaryKey(),
-	listId: text('list_id')
-		.notNull()
-		.references(() => lists.id, { onDelete: 'cascade' }),
-	name: text('name').notNull(),
-	quantityInfo: text('quantity_info'),
-	isChecked: integer('is_checked', { mode: 'boolean' }).notNull().default(false),
-	checkedAt: integer('checked_at'),
-	categoryOverride: text('category_override'),
-	createdBy: text('created_by').references(() => users.id),
-	createdAt: integer('created_at').notNull(),
-	updatedAt: integer('updated_at').notNull()
 });
 
 export const recipes = sqliteTable('recipes', {
@@ -141,29 +89,6 @@ export const recipeShares = sqliteTable('recipe_shares', {
 	createdAt: integer('created_at').notNull()
 });
 
-export const recipeIngredientExclusions = sqliteTable('recipe_ingredient_exclusions', {
-	userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-	ingredientId: text('ingredient_id').notNull().references(() => recipeIngredients.id, { onDelete: 'cascade' })
-}, (t) => [primaryKey({ columns: [t.userId, t.ingredientId] })]);
-
-export const favorites = sqliteTable('favorites', {
-	userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-	name: text('name').notNull(),
-	quantityInfo: text('quantity_info'),
-	categoryOverride: text('category_override'),
-	createdAt: integer('created_at').notNull()
-}, (t) => [primaryKey({ columns: [t.userId, t.name] })]);
-
-export const categoryPreferences = sqliteTable('category_preferences', {
-	userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-	normalizedName: text('normalized_name').notNull(),
-	categoryOverride: text('category_override').notNull(),
-	updatedAt: integer('updated_at').notNull()
-}, (t) => [
-	primaryKey({ columns: [t.userId, t.normalizedName] }),
-	index('category_preferences_user_id_idx').on(t.userId)
-]);
-
 export const appMeta = sqliteTable('app_meta', {
 	key: text('key').primaryKey(),
 	value: text('value').notNull()
@@ -192,13 +117,6 @@ export const barcodeCache = sqliteTable('barcode_cache', {
 	userEditedAt: integer('user_edited_at'), // set by manual corrections; OFF refreshes and cleanup leave these rows alone
 	lastSeenAt: integer('last_seen_at').notNull()
 });
-
-export const itemHistory = sqliteTable('item_history', {
-	userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-	name: text('name').notNull(),
-	useCount: integer('use_count').notNull().default(1),
-	lastUsedAt: integer('last_used_at').notNull()
-}, (t) => [primaryKey({ columns: [t.userId, t.name] })]);
 
 export const mealPlanEntries = sqliteTable('meal_plan_entries', {
 	id: text('id').primaryKey(),
@@ -254,22 +172,14 @@ export const supplementLogs = sqliteTable('supplement_logs', {
 ]);
 
 export type User = typeof users.$inferSelect;
-export type List = typeof lists.$inferSelect;
-export type Item = typeof items.$inferSelect;
-export type ListMember = typeof listMembers.$inferSelect;
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
-export type ListNotificationPref = typeof listNotificationPrefs.$inferSelect;
 export type Recipe = typeof recipes.$inferSelect;
 export type RecipeIngredient = typeof recipeIngredients.$inferSelect;
 export type RecipeStep = typeof recipeSteps.$inferSelect;
 export type RecipeShare = typeof recipeShares.$inferSelect;
 export type RecipeTag = typeof recipeTags.$inferSelect;
 export type BarcodeCache = typeof barcodeCache.$inferSelect;
-export type RecipeIngredientExclusion = typeof recipeIngredientExclusions.$inferSelect;
-export type ItemHistory = typeof itemHistory.$inferSelect;
 export type MealPlanEntry = typeof mealPlanEntries.$inferSelect;
-export type Favorite = typeof favorites.$inferSelect;
-export type CategoryPreference = typeof categoryPreferences.$inferSelect;
 export const supplementReminderSchedules = sqliteTable('supplement_reminder_schedules', {
 	id: text('id').primaryKey(),
 	supplementId: text('supplement_id').notNull().references(() => supplements.id, { onDelete: 'cascade' }),

@@ -12,6 +12,10 @@ export async function seedUpgradeFixture() {
 		const keys = Object.keys(row);
 		db.prepare(`INSERT INTO "${table}" (${keys.map(key => `"${key}"`).join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...keys.map(key => row[key]));
 	};
+	// Older images still have the shopping-list tables; seed them there so upgrades start from real data.
+	const hasLists = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'lists'").get());
+	/** @param {string} table @param {Record<string, string | number | null>} row */
+	const listInsert = (table, row) => { if (hasLists) insert(table, row); };
 	const password = `fixture-salt:${scryptSync('Groly-upgrade-test-2026!', 'fixture-salt', 64).toString('hex')}`;
 	db.transaction(() => {
 		for (const [id, lang] of [['upgrade-owner', 'de'], ['upgrade-member', 'en']]) {
@@ -19,12 +23,12 @@ export async function seedUpgradeFixture() {
 		}
 		insert('user_invites', { id: 'upgrade-legacy-invite', user_id: 'upgrade-member', token_hash: createHash('sha256').update('upgrade-legacy-token').digest('hex'), type: 'invite', created_at: seconds, expires_at: seconds + 86400 * 7 });
 		insert('sessions', { id: 'upgrade-existing-session', user_id: 'upgrade-owner', expires_at: seconds + 86400 * 30, created_at: seconds });
-		insert('lists', { id: 'upgrade-list', owner_id: 'upgrade-owner', name: 'Familie 🥦', description: 'Preserve Unicode and relations', created_at: seconds, updated_at: seconds });
-		insert('list_members', { list_id: 'upgrade-list', user_id: 'upgrade-member', permission: 'write', status: 'accepted', notifications_enabled: 0 });
-		insert('items', { id: 'upgrade-item', list_id: 'upgrade-list', name: 'Hafermilch', quantity_info: '2 × 1 l', category_override: 'dairy', created_by: 'upgrade-member', created_at: seconds, updated_at: seconds });
-		insert('favorites', { user_id: 'upgrade-owner', name: 'Äpfel', quantity_info: '500 g', created_at: seconds });
-		insert('category_preferences', { user_id: 'upgrade-owner', normalized_name: 'hafermilch', category_override: 'dairy', updated_at: ms });
-		insert('item_history', { user_id: 'upgrade-owner', name: 'Hafermilch', use_count: 5, last_used_at: seconds });
+		listInsert('lists', { id: 'upgrade-list', owner_id: 'upgrade-owner', name: 'Familie 🥦', description: 'Preserve Unicode and relations', created_at: seconds, updated_at: seconds });
+		listInsert('list_members', { list_id: 'upgrade-list', user_id: 'upgrade-member', permission: 'write', status: 'accepted', notifications_enabled: 0 });
+		listInsert('items', { id: 'upgrade-item', list_id: 'upgrade-list', name: 'Hafermilch', quantity_info: '2 × 1 l', category_override: 'dairy', created_by: 'upgrade-member', created_at: seconds, updated_at: seconds });
+		listInsert('favorites', { user_id: 'upgrade-owner', name: 'Äpfel', quantity_info: '500 g', created_at: seconds });
+		listInsert('category_preferences', { user_id: 'upgrade-owner', normalized_name: 'hafermilch', category_override: 'dairy', updated_at: ms });
+		listInsert('item_history', { user_id: 'upgrade-owner', name: 'Hafermilch', use_count: 5, last_used_at: seconds });
 		insert('recipes', { id: 'upgrade-recipe', user_id: 'upgrade-owner', title: 'Gemüsepfanne 🥦', image_url: '/uploads/upgrade-test.png', servings: 3, created_at: ms, updated_at: ms });
 		insert('recipe_ingredients', { id: 'upgrade-ingredient', recipe_id: 'upgrade-recipe', amount: '1.5', unit: 'kg', name: 'Gemüse', sort_order: 0 });
 		insert('recipe_steps', { id: 'upgrade-step', recipe_id: 'upgrade-recipe', step_number: 1, text: 'Gemüse anbraten.' });
@@ -38,8 +42,8 @@ export async function seedUpgradeFixture() {
 		insert('caffeine_logs', { id: 'upgrade-caffeine-log', user_id: 'upgrade-owner', drink_name: 'Kaffee', amount_ml: 125, caffeine_mg: 80, logged_at: ms, client_log_id: 'upgrade-caffeine-client', created_at: ms });
 		insert('meditation_logs', { id: 'upgrade-meditation-log', user_id: 'upgrade-owner', duration_seconds: 420, logged_at: ms, client_log_id: 'upgrade-meditation-client', created_at: ms });
 		insert('mood_logs', { id: 'upgrade-mood-log', user_id: 'upgrade-owner', date, mood: 4, energy: 3, activities: '["exercise"]', note: 'Behalten', gratitude: 'Familie', created_at: ms, updated_at: ms });
-		insert('list_notification_prefs', { list_id: 'upgrade-list', user_id: 'upgrade-member', enabled: 0 });
-		insert('recipe_ingredient_exclusions', { user_id: 'upgrade-owner', ingredient_id: 'upgrade-ingredient' });
+		listInsert('list_notification_prefs', { list_id: 'upgrade-list', user_id: 'upgrade-member', enabled: 0 });
+		listInsert('recipe_ingredient_exclusions', { user_id: 'upgrade-owner', ingredient_id: 'upgrade-ingredient' });
 		insert('supplement_nutrients', { id: 'upgrade-nutrient', supplement_id: 'upgrade-supplement', name: 'Magnesium', amount_per_unit: 200, unit: 'mg' });
 		insert('supplement_reminder_overrides', { id: 'upgrade-override', user_id: 'upgrade-owner', date, reminder_time: '20:00', done: 1, created_at: ms });
 		insert('supplement_catalog', { id: 'upgrade-catalog', name: 'Magnesium', unit: 'capsules', created_by: 'upgrade-owner', created_at: ms, updated_at: ms });

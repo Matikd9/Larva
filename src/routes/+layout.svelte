@@ -2,7 +2,6 @@
 	import '../app.css';
 	import { onMount, untrack } from 'svelte';
 	import { initLanguage, currentLang } from '#lib/i18n.svelte';
-	import { dispatch } from '#lib/sseStore.svelte';
 	import { initUpdateDetection, checkForUpdate } from '#lib/stores/pwa.svelte';
 	import { initResumeOrchestrator } from '#lib/resumeOrchestrator';
 	import { afterNavigate, onNavigate } from '$app/navigation';
@@ -91,66 +90,6 @@
 		}
 
 	});
-
-	$effect(() => {
-		const userId = data.user?.id ?? '';
-		if (!browser || !userId) return;
-
-		let sse: EventSource | null = null;
-		let retryDelay = 1000;
-		let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-		let connected = false;
-
-		function connectSSE() {
-			sse = new EventSource(`/api/events?userId=${encodeURIComponent(userId)}`);
-			sse.onopen = () => {
-				retryDelay = 1000;
-				if (connected) dispatch({ type: 'sse_connected' });
-				connected = true;
-			};
-			sse.onmessage = (e) => {
-				try { dispatch(JSON.parse(e.data)); } catch { /* JSON-Parse-Fehler ignorieren */ }
-			};
-			sse.onerror = () => {
-				sse?.close();
-				retryTimeout = setTimeout(connectSSE, retryDelay);
-				retryDelay = Math.min(retryDelay * 2, 30_000);
-			};
-		}
-
-		// Verbindung hart neu aufbauen. Auf iOS 18 feuert EventSource.onerror nach dem
-		// Backgrounding NICHT und readyState bleibt fälschlich OPEN — wir dürfen uns also
-		// NICHT auf readyState verlassen, sondern schließen bedingungslos die alte
-		// (verhindert gestapelte Server-Streams) und verbinden frisch.
-		function reconnectSSE() {
-			if (retryTimeout !== null) { clearTimeout(retryTimeout); retryTimeout = null; }
-			sse?.close();
-			retryDelay = 1000;
-			connectSSE();
-		}
-
-		// Nach längerer Abwesenheit (iOS-Suspend/Standby) ist die SSE-Verbindung meist
-		// tot, meldet sich aber nicht. Beim Sichtbar-werden frisch verbinden, wenn die
-		// App nennenswert weg war — kurze Tab-Wechsel lösen keinen Reconnect aus.
-		let hiddenSince = 0;
-		function handleVisibility() {
-			if (document.visibilityState === 'hidden') { hiddenSince = Date.now(); return; }
-			const away = hiddenSince ? Date.now() - hiddenSince : 0;
-			hiddenSince = 0;
-			if (away > 10_000) reconnectSSE();
-		}
-
-		connectSSE();
-		window.addEventListener('online', reconnectSSE);
-		document.addEventListener('visibilitychange', handleVisibility);
-
-		return () => {
-			sse?.close();
-			if (retryTimeout !== null) clearTimeout(retryTimeout);
-			window.removeEventListener('online', reconnectSSE);
-			document.removeEventListener('visibilitychange', handleVisibility);
-		};
-	});
 </script>
 
 <svelte:head>
@@ -163,20 +102,6 @@
 		{@render children()}
 	{/key}
 </div>
-
-<!--
-	iOS keyboard bridge: focused synchronously in the shortcut gesture handler
-	before goto() so that iOS keeps the keyboard context alive across navigation.
-	Focus then transfers to the real input when AddItemBar mounts.
--->
-<input
-	id="ios-keyboard-bridge"
-	type="text"
-	aria-hidden="true"
-	readonly
-	tabindex="-1"
-	style="position:fixed; left:-9999px; top:0; opacity:0; pointer-events:none; width:1px; height:1px;"
-/>
 
 {#if whatsNewOpen}
 	<WhatsNewModal

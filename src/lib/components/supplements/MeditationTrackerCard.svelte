@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { t } from '#lib/i18n.svelte';
-	import { formatTime } from '#lib/dates';
+	import { formatTime, todayKey, tsToDateKey, quickLogTimestamp } from '#lib/dates';
 	import { userSettings } from '#lib/userSettings.svelte';
 	import MeditationTimerSheet from './MeditationTimerSheet.svelte';
 	import MeditationEditLogSheet from './MeditationEditLogSheet.svelte';
@@ -21,7 +21,8 @@
 		focusMode = false,
 		onfocus,
 		oncollapse,
-		anchorId
+		anchorId,
+		logDate = null
 	}: {
 		logs: { id: string; durationSeconds: number; loggedAt: number }[];
 		goalMinutes: number;
@@ -34,9 +35,10 @@
 		onfocus?: () => void;
 		oncollapse?: () => void;
 		anchorId?: string;
+		logDate?: string | null; // the day quick adds go to (default today)
 	} = $props();
 
-	let editSheet = $state<{ id: string; durationSeconds: number; time: string } | null>(null);
+	let editSheet = $state<{ id: string; durationSeconds: number; time: string; date?: string } | null>(null);
 	let timerOpen = $state(false);
 	let timerDuration = $state(10);
 	let reminderSheetOpen = $state(false);
@@ -87,7 +89,7 @@
 	}
 
 	function openEdit(log: { id: string; durationSeconds: number; loggedAt: number }) {
-		editSheet = { id: log.id, durationSeconds: log.durationSeconds, time: toHHMM(log.loggedAt) };
+		editSheet = { id: log.id, durationSeconds: log.durationSeconds, time: toHHMM(log.loggedAt), date: tsToDateKey(log.loggedAt) };
 	}
 
 	function startTimer(minutes: number) {
@@ -169,7 +171,9 @@
 		{/snippet}
 		{#snippet details()}
 			{#if focusMode}
-				<MeditationStartContent onstart={startTimerFromFocus} />
+				{#if !logDate || logDate === todayKey()}<!-- A live timer only makes sense for today. -->
+					<MeditationStartContent onstart={startTimerFromFocus} />
+				{/if}
 			{:else}
 				{#if showCustomInput}
 					<div class="flex gap-2 items-center mb-2">

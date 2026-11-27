@@ -11,7 +11,7 @@ describe('calculateNutritionTargets', () => {
 	it('calculates a stable Mifflin-St Jeor estimate', () => {
 		expect(calculateNutritionTargets({
 			sex: 'male', age: 30, heightCm: 175, weightKg: 70, activity: 'light'
-		})).toEqual({ bmr: 1649, tdee: 2267, protein: 84, fat: 76, carbs: 312, fiber: 30 });
+		})).toEqual({ bmr: 1649, tdee: 2267, targetKcal: 2267, protein: 84, fat: 76, carbs: 312, fiber: 30 });
 	});
 
 	it('calculates fat loss with high protein diet correctly', () => {
@@ -20,10 +20,20 @@ describe('calculateNutritionTargets', () => {
 			goal: 'fat-loss', diet: 'high-protein'
 		});
 		expect(res).not.toBeNull();
-		// tdee: 2267 * 0.8 = 1814
-		expect(res?.tdee).toBe(1814);
+		// target: 2267 * 0.8 = 1814; maintenance stays 2267
+		expect(res?.targetKcal).toBe(1814);
+		expect(res?.tdee).toBe(2267);
 		// protein: 70 * 2.0 = 140
 		expect(res?.protein).toBe(140);
+	});
+
+	it('keeps weight-based protein within the kcal target', () => {
+		// 2 g/kg at 300 kg is 2400 kcal of protein alone, above this fat-loss target.
+		const res = calculateNutritionTargets({
+			sex: 'female', age: 120, heightCm: 100, weightKg: 300, activity: 'sedentary', goal: 'fat-loss', diet: 'high-protein'
+		})!;
+		expect(res.protein).toBeLessThan(600);
+		expect(res.protein * 4 + res.fat * 9 + res.carbs * 4).toBeLessThanOrEqual(res.targetKcal * 1.01);
 	});
 
 	it('rejects implausible calculator inputs', () => {

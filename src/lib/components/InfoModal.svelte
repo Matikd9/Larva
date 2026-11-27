@@ -20,7 +20,7 @@
 				{ title: t.icon_settings_title, text: t.icon_help, link: { href: '/einstellungen#app-icon', label: t.icon_settings_title } },
 				{
 					title: 'One-handed use',
-					text: 'Groly is designed for one-handed use. New items appear at the bottom and lists grow upward; navigation and sheets also open from the bottom.'
+					text: 'Groly is designed for one-handed use. Navigation, the + button and sheets all open from the bottom of the screen.'
 				},
 				{
 					title: 'Offline & sync',
@@ -49,60 +49,8 @@
 				},
 				{
 					title: 'Keep screen on',
-					text: 'Groly can keep the screen awake while you shop, cook from a recipe, or meditate. Each context can be enabled separately in Settings.',
+					text: 'Groly can keep the screen awake while you cook from a recipe or meditate. Each context can be enabled separately in Settings.',
 					link: { href: '/einstellungen', label: 'Manage in Settings' }
-				}
-			]
-		},
-		{
-			section: 'Lists',
-			svg: `<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>`,
-			items: [
-				{ title: t.sort_mode_title, text: t.lists_sort_help },
-				{
-					title: 'Open, edit & sort',
-					text: 'Tap a list to open it. Long-press its name to edit its name, additional info, icon, category sorting, and location in one grouped surface. Category sorting uses the same drag handles and position picker as Settings. Done returns to the editor; Save applies your edits and Cancel discards them.'
-				},
-				{
-					title: 'Share & notify',
-					text: 'Long-press a list and open Sharing & members to invite users or manage access. Your unsaved list edits remain available when you return. Invitations and member changes take effect in the sharing dialog. Change notifications for a shared list in the editor and confirm with Save.'
-				},
-				{
-					title: 'Location detection',
-					text: 'Assign a location while editing a list and Groly can open it automatically when you open the app or return from the background within 100 m. Tapping a push reminder opens its destination instead, such as the matching tracker. Your GPS location stays on your device; only address searches are sent to OpenStreetMap.',
-					link: { href: '/einstellungen?expand=location', label: 'Enable location detection' }
-				},
-				{
-					title: 'Location access on iPhone',
-					text: 'If your installed Groly app repeatedly asks for location access, open the same Groly address in Safari. In Page Menu → Website Settings, set Location to Allow. Also check iPhone Settings → Privacy & Security → Location Services → Safari Websites (or Groly, if listed): choose While Using the App. If prompts continue, reinstalling the home screen app after granting access may help. Before removing it, go online and wait until all pending changes have synced; unsynced changes can be lost. Then remove the home screen app and add it again from the same Safari address. Permission behavior can vary with the iOS version.'
-				},
-				{
-					title: 'List view',
-					text: 'Prefer compact rows to tiles? Switch to List view in Settings. Items share one card with fine dividers, category icons on the left, and quantities on the right. Long names wrap. Tap a row to check it off; long-press to edit. Completed items stay in a separate collapsible group above.',
-					link: { href: '/einstellungen', label: 'Choose a list view' }
-				}
-			]
-		},
-		{
-			section: 'Items',
-			svg: `<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/>`,
-			items: [
-				{
-					title: 'Add items',
-					text: 'Separate several items with commas, for example “2x Milk, 500g Ground beef, Bread”. Quantities at the start are recognized automatically. With an empty input, frequently used items that are not on your list appear above it. Typing filters your history. Tap a suggestion to add it with the entered quantity; a brief checkmark confirms it. Search results already on your list have a small checkmark and cannot be added again from suggestions.'
-				},
-				{
-					title: 'Use & edit',
-					text: 'Tap an item to check it off. Long-press to edit or delete it; swipe a long name sideways to reveal it in full.'
-				},
-				{
-					title: 'Categories',
-					text: 'Groly automatically recognizes items and shows a matching category or product icon. Long-press an item to change its category or return to Automatic. Groly remembers your choice for items with the same name. Set the order globally in Settings or per list in its edit dialog.',
-					link: { href: '/einstellungen/kategorien', label: 'Set category sorting' }
-				},
-				{
-					title: 'Favorites',
-					text: 'Long-press an item and tap the star beside its quantity to save it. Open + → Favorites to add saved items quickly; long-press a favorite to edit its name, quantity, and category. Save or cancel your changes; Remove opens a separate confirmation. Editing a favorite does not change existing shopping items. Favorites follow your shopping list layout: tiles or compact rows with fine dividers. A green dot marks items already on the list; a brief checkmark confirms adding an item. Once loaded on this device, favorites also work offline. Additions, edits, and removals sync when you reconnect.'
 				}
 			]
 		},
@@ -111,8 +59,8 @@
 			svg: `<path d="M3 3v18h18"/><path d="m7 15 3-3 3 2 4-5"/>`,
 			items: [
 				{
-					title: 'Today & history',
-					text: 'The shared tracker header combines Today, History, and—when enabled—Nutrition. The active tab uses your theme accent; Nutrition uses orange. The menu stays available in all three views; use the arrows below the header to change the date in History and Nutrition. Use + to open Quick Log. Tap a tracker card to expand it and manage its entries. History summarizes your data by day, week, or month in one shared card. Neutral section headings and fine dividers organize the history; tracker colors identify the charts. Existing expand/collapse controls remain available, and sections without relevant data are hidden.'
+					title: 'Home & history',
+					text: 'The Nutrition screen is your home: meals, then the daily log with supplements, water, caffeine, mood and meditation. The date arrows switch the whole screen to another day, so you can review or add entries for earlier days. Use + to open Quick Log. Tap a tracker card to expand it and manage its entries. History, in the bottom bar, analyses your data by week, month and year: averages with the number of logged days, comparisons with the previous period and a year calendar of how consistently you logged. Tap any day to open it on the home screen.'
 				},
 				{
 					title: 'PDF export',
@@ -137,11 +85,11 @@
 				},
 				{
 					title: 'Mood journal',
-					text: 'Record mood and daily energy on a 1–5 scale, then optionally add feelings, activities, contexts, gratitude, or a note. The completed previous week appears as a factual review from four entries and remains available in weekly History. Its Today card can be hidden directly or disabled under Manage.'
+					text: 'Record mood and daily energy on a 1–5 scale, then optionally add feelings, activities, contexts, gratitude, or a note. The completed previous week appears as a factual review from four entries and remains available in weekly History. Its daily log card can be hidden directly or disabled under Manage.'
 				},
 				{
 					title: 'Nutrition',
-					text: 'Log meals using product search, barcode scanning, or complete custom nutrition values. The daily balance shows calories and macros at a glance; individual ingredients and meal templates can be created and managed in Favorites. Daily targets can be entered manually or explicitly filled from the needs calculator. Recipes can be matched once and then logged by serving. The bottom Tracker button returns to the tracker overview.'
+					text: 'Log meals using product search, barcode scanning, or complete custom nutrition values. The daily balance shows calories and macros at a glance; individual ingredients and meal templates can be created and managed in Favorites. Daily targets can be entered manually or explicitly filled from the needs calculator. Recipes can be matched once and then logged by serving.'
 				}
 			]
 		},
@@ -154,12 +102,12 @@
 					text: 'Use + to create a recipe manually or import one from any public recipe page that provides compatible structured recipe data. If a page cannot be imported, Groly shows a message. Paste several ingredient lines at once and Groly separates amount, unit, and name for you.'
 				},
 				{
-					title: 'Cook & shop',
-					text: 'All ingredients remain readable when cooking. Tap the shopping-bag button to select ingredients and a destination list, then confirm at the bottom. Your ingredient selection is remembered for each recipe, including after adding to a list. Unselected ingredients move below the selected ones the next time you open the dialog; rows stay in place while you change the selection. You can also create a new list in this dialog.'
+					title: 'Cook',
+					text: 'All ingredients remain readable when cooking. Adjust the servings and the amounts scale with them, including fractions and ranges.'
 				},
 				{
 					title: 'Meal plan',
-					text: 'Plan several meals per day, adjust servings, and add one meal or the entire week to a shopping list. New plans use your local calendar day. Older entries affected by the date bug may appear one day earlier after upgrading to 1.0; move those entries to the intended day.'
+					text: 'Plan several meals per day and adjust servings. New plans use your local calendar day. Older entries affected by the date bug may appear one day earlier after upgrading to 1.0; move those entries to the intended day.'
 				},
 				{
 					title: 'Organize & remember',
@@ -181,7 +129,7 @@
 				{ title: t.icon_settings_title, text: t.icon_help, link: { href: '/einstellungen#app-icon', label: t.icon_settings_title } },
 				{
 					title: 'Einhandbedienung',
-					text: 'Groly ist für die Bedienung mit einer Hand ausgelegt. Neue Items erscheinen unten und Listen wachsen nach oben; auch Navigation und Dialoge öffnen sich von unten.'
+					text: 'Groly ist für die Bedienung mit einer Hand ausgelegt. Navigation, die +-Taste und Dialoge öffnen sich unten am Bildschirm.'
 				},
 				{
 					title: 'Offline & Synchronisation',
@@ -210,60 +158,8 @@
 				},
 				{
 					title: 'Bildschirm anlassen',
-					text: 'Groly kann den Bildschirm beim Einkaufen, Kochen mit Rezept oder Meditieren wach halten. Jeder Bereich lässt sich einzeln in den Einstellungen aktivieren.',
+					text: 'Groly kann den Bildschirm beim Kochen mit Rezept oder Meditieren wach halten. Jeder Bereich lässt sich einzeln in den Einstellungen aktivieren.',
 					link: { href: '/einstellungen', label: 'In den Einstellungen verwalten' }
-				}
-			]
-		},
-		{
-			section: 'Listen',
-			svg: `<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>`,
-			items: [
-				{ title: t.sort_mode_title, text: t.lists_sort_help },
-				{
-					title: 'Öffnen, bearbeiten & sortieren',
-					text: 'Tippe eine Liste zum Öffnen an. Halte ihren Namen gedrückt, um Name, Zusatzinfo, Icon, Kategorie-Sortierung und Standort in einer gemeinsamen Fläche zu bearbeiten. Die Kategorie-Sortierung nutzt dieselben Griffe und die Positionsauswahl wie die Einstellungen. Fertig führt zurück zum Editor; Speichern übernimmt deine Änderungen, Abbrechen verwirft sie.'
-				},
-				{
-					title: 'Teilen & Benachrichtigungen',
-					text: 'Halte eine Liste gedrückt und öffne „Teilen & Mitglieder“, um Nutzer einzuladen oder Zugriffe zu verwalten. Deine ungespeicherten Listeneingaben bleiben bei der Rückkehr erhalten. Einladungen und Mitgliederänderungen gelten direkt im Teilen-Dialog. Benachrichtigungen für eine geteilte Liste änderst du im Editor und bestätigst mit Speichern.'
-				},
-				{
-					title: 'Standorterkennung',
-					text: 'Hinterlege beim Bearbeiten einer Liste einen Standort und Groly kann sie beim Öffnen der App oder bei der Rückkehr aus dem Hintergrund innerhalb von 100 m automatisch öffnen. Beim Antippen einer Push-Erinnerung öffnet sich stattdessen deren Ziel, zum Beispiel der passende Tracker. Dein GPS-Standort bleibt auf dem Gerät; nur Adresssuchen werden an OpenStreetMap gesendet.',
-					link: { href: '/einstellungen?expand=location', label: 'Standorterkennung aktivieren' }
-				},
-				{
-					title: 'Standortfreigabe auf dem iPhone',
-					text: 'Wenn die installierte Groly-App wiederholt nach deinem Standort fragt, öffne dieselbe Groly-Adresse in Safari. Stelle im Seitenmenü unter „Website-Einstellungen“ → „Standort“ → „Erlauben“ ein. Prüfe auch in den iPhone-Einstellungen unter „Datenschutz & Sicherheit“ → „Ortungsdienste“ → „Safari-Websites“ (oder Groly, falls aufgeführt), ob „Beim Verwenden der App“ aktiviert ist. Falls die Nachfragen bleiben, kann eine erneute Installation der Home-Bildschirm-App nach der Freigabe helfen. Gehe vor dem Entfernen online und warte, bis alle ausstehenden Änderungen synchronisiert sind; nicht synchronisierte Änderungen können verloren gehen. Entferne anschließend die Home-Bildschirm-App und füge sie über dieselbe Safari-Adresse wieder hinzu. Das Berechtigungsverhalten kann je nach iOS-Version abweichen.'
-				},
-				{
-					title: 'Listenansicht',
-					text: 'Du bevorzugst kompakte Zeilen statt Kacheln? Aktiviere die Listenansicht in den Einstellungen. Artikel stehen in einer gemeinsamen Karte mit feinen Trennlinien, Kategorie-Icons links und Mengen rechts. Lange Namen werden umgebrochen. Antippen hakt einen Artikel ab, langes Drücken öffnet die Bearbeitung. Erledigte Artikel bleiben in einer eigenen einklappbaren Gruppe darüber.',
-					link: { href: '/einstellungen', label: 'Listenansicht auswählen' }
-				}
-			]
-		},
-		{
-			section: 'Items',
-			svg: `<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/>`,
-			items: [
-				{
-					title: 'Items hinzufügen',
-					text: 'Trenne mehrere Items durch Kommas, zum Beispiel „2x Milch, 500 g Hackfleisch, Brot“. Mengenangaben am Anfang werden automatisch erkannt. Bei leerer Eingabe erscheinen häufig verwendete Artikel, die noch auf der Liste fehlen. Beim Tippen wird dein Verlauf durchsucht. Tippe einen Vorschlag an, um ihn mit der eingetragenen Menge hinzuzufügen; ein kurzer Haken bestätigt die Aktion. Suchtreffer, die schon auf der Liste stehen, tragen einen kleinen Haken und lassen sich über die Vorschläge nicht erneut hinzufügen.'
-				},
-				{
-					title: 'Verwenden & bearbeiten',
-					text: 'Tippe ein Item zum Abhaken an. Halte es zum Bearbeiten oder Löschen gedrückt; wische einen langen Namen seitlich, um ihn vollständig zu sehen.'
-				},
-				{
-					title: 'Kategorien',
-					text: 'Groly erkennt Items automatisch und zeigt passende Kategorie- oder Produktsymbole. Halte ein Item gedrückt, um die Kategorie zu ändern oder zu „Automatisch“ zurückzukehren. Groly merkt sich deine Auswahl für gleich benannte Items. Die Reihenfolge legst du global in den Einstellungen oder je Liste fest.',
-					link: { href: '/einstellungen/kategorien', label: 'Kategoriesortierung festlegen' }
-				},
-				{
-					title: 'Favoriten',
-					text: 'Halte ein Item gedrückt und tippe auf den Stern neben der Menge. Über + → Favoriten fügst du gespeicherte Items schnell hinzu; langer Druck öffnet die Bearbeitung für Name, Menge und Kategorie. Speichere deine Änderungen oder brich ab; Entfernen öffnet eine separate Rückfrage. Bereits vorhandene Einkaufsartikel bleiben unverändert. Favoriten folgen deiner Einkaufslistenansicht: Kacheln oder kompakte Zeilen mit feinen Trennlinien. Ein grüner Punkt markiert Artikel, die bereits auf der Liste stehen; ein kurzer Haken bestätigt das Hinzufügen. Einmal auf diesem Gerät geladene Favoriten funktionieren auch offline. Änderungen werden beim Wiederverbinden synchronisiert.'
 				}
 			]
 		},
@@ -272,8 +168,8 @@
 			svg: `<path d="M3 3v18h18"/><path d="m7 15 3-3 3 2 4-5"/>`,
 			items: [
 				{
-					title: 'Heute & Verlauf',
-					text: 'Der gemeinsame Tracker-Header enthält Heute, Verlauf und – falls aktiviert – Ernährung. Der aktive Tab nutzt deine Theme-Farbe, Ernährung ist orange. Das Menü ist in allen drei Ansichten erreichbar; mit den Pfeilen unter dem Header wechselst du im Verlauf und bei Ernährung das Datum. Über + öffnest du das Quick-Log. Tippe eine Tracker-Karte an, um sie aufzuklappen und ihre Einträge zu verwalten. Der Verlauf fasst deine Daten nach Tag, Woche oder Monat in einer gemeinsamen Karte zusammen. Neutrale Bereichsüberschriften und feine Trennlinien gliedern den Verlauf; Trackerfarben kennzeichnen die Diagramme. Vorhandene Auf- und Zuklappfunktionen bleiben erhalten. Bereiche ohne relevante Daten werden ausgeblendet.'
+					title: 'Start & Verlauf',
+					text: 'Der Ernährungsbildschirm ist deine Startseite: Mahlzeiten, darunter das Tagesprotokoll mit Supplements, Wasser, Koffein, Stimmung und Meditation. Mit den Datumspfeilen wechselt der ganze Bildschirm auf einen anderen Tag, sodass du frühere Tage ansehen oder ergänzen kannst. Über + öffnest du das Quick-Log. Tippe eine Tracker-Karte an, um sie aufzuklappen und ihre Einträge zu verwalten. Der Verlauf in der unteren Leiste wertet deine Daten nach Woche, Monat und Jahr aus: Durchschnitte mit der Zahl erfasster Tage, Vergleiche mit dem Vorzeitraum und ein Jahreskalender, wie regelmäßig du erfasst hast. Tippe auf einen Tag, um ihn auf der Startseite zu öffnen.'
 				},
 				{
 					title: 'PDF-Export',
@@ -298,11 +194,11 @@
 				},
 				{
 					title: 'Stimmungstagebuch',
-					text: 'Erfasse Stimmung und Tagesenergie auf einer Skala von 1 bis 5 und ergänze optional Gefühle, Aktivitäten, Kontexte, Dankbarkeit oder eine Notiz. Die abgeschlossene Vorwoche erscheint ab vier Einträgen als sachlicher Rückblick und bleibt im Wochenverlauf verfügbar. Die Karte auf „Heute“ kannst du direkt ausblenden oder unter „Verwalten“ abschalten.'
+					text: 'Erfasse Stimmung und Tagesenergie auf einer Skala von 1 bis 5 und ergänze optional Gefühle, Aktivitäten, Kontexte, Dankbarkeit oder eine Notiz. Die abgeschlossene Vorwoche erscheint ab vier Einträgen als sachlicher Rückblick und bleibt im Wochenverlauf verfügbar. Die Karte im Tagesprotokoll kannst du direkt ausblenden oder unter „Verwalten“ abschalten.'
 				},
 				{
 					title: 'Ernährung',
-					text: 'Erfasse Mahlzeiten per Produktsuche, Barcode oder mit vollständigen eigenen Nährwerten. Die Tagesbilanz zeigt Kalorien und Makros auf einen Blick; einzelne Zutaten und Gerichtsvorlagen kannst du in den Favoriten anlegen und verwalten. Tagesziele kannst du manuell setzen oder bewusst aus dem Bedarfsrechner übernehmen. Rezepte ordnest du einmal Nährwerten zu und trackst sie danach portionsweise. Über den unteren Tracker-Button gelangst du zurück zur Tracker-Übersicht.'
+					text: 'Erfasse Mahlzeiten per Produktsuche, Barcode oder mit vollständigen eigenen Nährwerten. Die Tagesbilanz zeigt Kalorien und Makros auf einen Blick; einzelne Zutaten und Gerichtsvorlagen kannst du in den Favoriten anlegen und verwalten. Tagesziele kannst du manuell setzen oder bewusst aus dem Bedarfsrechner übernehmen. Rezepte ordnest du einmal Nährwerten zu und trackst sie danach portionsweise.'
 				}
 			]
 		},
@@ -315,12 +211,12 @@
 					text: 'Über + legst du ein Rezept selbst an oder importierst es von jeder öffentlichen Rezeptseite mit kompatiblen strukturierten Rezeptdaten. Lässt sich eine Seite nicht importieren, zeigt Groly einen Hinweis. Füge mehrere Zutatenzeilen auf einmal ein und Groly trennt Menge, Einheit und Name für dich.'
 				},
 				{
-					title: 'Kochen & einkaufen',
-					text: 'Beim Kochen bleiben alle Zutaten lesbar. Über die Einkaufstasche wählst du Zutaten und die Ziel-Einkaufsliste aus und bestätigst unten. Die Zutatenauswahl wird pro Rezept gemerkt, auch nach dem Hinzufügen. Abgewählte Zutaten stehen beim nächsten Öffnen unter den ausgewählten; während der Auswahl bleiben die Zeilen an ihrem Platz. Im Dialog kannst du auch eine neue Liste anlegen.'
+					title: 'Kochen',
+					text: 'Beim Kochen bleiben alle Zutaten lesbar. Passe die Portionen an und die Mengen skalieren mit, auch Brüche und Spannen.'
 				},
 				{
 					title: 'Wochenplan',
-					text: 'Plane mehrere Mahlzeiten pro Tag, passe die Portionen an und übertrage ein Gericht oder die ganze Woche in eine Einkaufsliste. Neue Pläne verwenden deinen lokalen Kalendertag. Ältere, vom Datumsfehler betroffene Einträge können nach dem Update auf 1.0 einen Tag früher erscheinen; verschiebe sie auf den gewünschten Tag.'
+					text: 'Plane mehrere Mahlzeiten pro Tag und passe die Portionen an. Neue Pläne verwenden deinen lokalen Kalendertag. Ältere, vom Datumsfehler betroffene Einträge können nach dem Update auf 1.0 einen Tag früher erscheinen; verschiebe sie auf den gewünschten Tag.'
 				},
 				{
 					title: 'Ordnen & merken',

@@ -18,6 +18,14 @@ export function todayKey(): string {
 	return toLocalDateKey(new Date());
 }
 
+/** Timestamp for a quick log on `logDate`: now for today, the current clock time on a past day. */
+export function quickLogTimestamp(logDate: string | null | undefined, now = new Date()): number {
+	if (!logDate || logDate === toLocalDateKey(now)) return now.getTime();
+	const d = new Date(`${logDate}T00:00:00`);
+	d.setHours(now.getHours(), now.getMinutes(), 0, 0);
+	return d.getTime();
+}
+
 export function dateKeyToDate(key: string): Date {
 	return new Date(key + 'T12:00:00');
 }

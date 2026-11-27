@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { t } from '#lib/i18n.svelte';
-	import { formatTime } from '#lib/dates';
+	import { formatTime, tsToDateKey, quickLogTimestamp } from '#lib/dates';
 	import { userSettings } from '#lib/userSettings.svelte';
 	import WaterEditLogSheet from './WaterEditLogSheet.svelte';
 	import WaterReminderSheet from './WaterReminderSheet.svelte';
@@ -19,7 +19,8 @@
 		focusMode = false,
 		onfocus,
 		oncollapse,
-		anchorId
+		anchorId,
+		logDate = null
 	}: {
 		logs: { id: string; amountMl: number; loggedAt: number }[];
 		goalMl: number;
@@ -32,13 +33,14 @@
 		onfocus?: () => void;
 		oncollapse?: () => void;
 		anchorId?: string;
+		logDate?: string | null; // the day quick adds go to (default today)
 	} = $props();
 
 	let saving = $state(false);
 	let errorMsg = $state<string | null>(null);
 	let showCustomInput = $state(false);
 	let customAmount = $state('');
-	let editSheet = $state<{ id: string; amountMl: number; time: string } | null>(null);
+	let editSheet = $state<{ id: string; amountMl: number; time: string; date?: string } | null>(null);
 	let hasReminders = $state(false);
 	let reminderSheetOpen = $state(false);
 
@@ -74,7 +76,7 @@
 	}
 
 	function openEdit(log: { id: string; amountMl: number; loggedAt: number }) {
-		editSheet = { id: log.id, amountMl: log.amountMl, time: toHHMM(log.loggedAt) };
+		editSheet = { id: log.id, amountMl: log.amountMl, time: toHHMM(log.loggedAt), date: tsToDateKey(log.loggedAt) };
 	}
 
 	async function addWater(ml: number): Promise<boolean> {
@@ -85,7 +87,7 @@
 			const res = await fetch('/api/water-logs', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ amountMl: ml, loggedAt: Date.now() })
+				body: JSON.stringify({ amountMl: ml, loggedAt: quickLogTimestamp(logDate) })
 			});
 			if (!res.ok) throw new Error();
 			onlogged();

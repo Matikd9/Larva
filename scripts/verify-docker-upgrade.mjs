@@ -73,19 +73,9 @@ async function smoke(container, cookie, fixture) {
 		await verifyUpload(container, cookie);
 		return;
 	}
-	for (const route of ['/api/auth/me', '/api/lists', '/api/recipes', '/api/supplements', '/api/water-logs', '/api/caffeine-logs', '/api/meditation-logs', '/api/mood-logs', '/api/nutrition/goals', '/', '/rezepte', '/tracker', '/tracker?tab=history', '/tracker/nutrition', '/tracker/verwalten', '/einstellungen']) {
+	for (const route of ['/api/auth/me', '/api/recipes', '/api/supplements', '/api/water-logs', '/api/caffeine-logs', '/api/meditation-logs', '/api/mood-logs', '/api/nutrition/goals', '/', '/rezepte', '/tracker', '/tracker/verwalten', '/einstellungen']) {
 		assert.equal(request(container, route, { headers }).status, 200, `Existing session failed at ${route}`);
 	}
-	const sse = evaluate(container, async cookie => {
-		const controller = new AbortController();
-		const response = await fetch('http://127.0.0.1:3000/api/events', { headers: { cookie }, signal: controller.signal });
-		const reader = response.body.getReader();
-		try { return { status: response.status, type: response.headers.get('content-type'), first: new TextDecoder().decode((await reader.read()).value) }; }
-		finally { controller.abort(); }
-	}, [cookie]);
-	assert.equal(sse.status, 200);
-	assert.equal(sse.type, 'text/event-stream');
-	assert(sse.first.includes(': connected'), 'SSE failed to establish a stream');
 	for (const type of ['logs', 'catalog']) {
 		const exported = request(container, `/api/supplement-logs/export?${type}=1&tz=Europe/Moscow`, { headers });
 		assert.equal(exported.status, 200, 'CSV export failed');

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { t } from '#lib/i18n.svelte';
+	import { t, nutrition_macro_mismatch } from '#lib/i18n.svelte';
 	import { calculateNutritionTargets, type NutritionActivity, type NutritionSex, type NutritionGoalType, type NutritionDietType } from '#lib/nutritionUtils';
 	import ManageSheetShell from './ManageSheetShell.svelte';
 
@@ -92,6 +92,15 @@
 		}
 	});
 
+	// Hand-edited targets: warn when protein×4 + carbs×4 + fat×9 is more than 10 % away from the kcal goal.
+	const macroKcalMismatch = $derived.by(() => {
+		const goal = parseInt(kcal, 10);
+		const [p, f, c] = [protein, fat, carbs].map(v => parseInt(v, 10) || 0);
+		const macroKcal = p * 4 + c * 4 + f * 9;
+		if (!(goal > 0) || macroKcal === 0 || Math.abs(macroKcal - goal) <= goal * 0.1) return null;
+		return { macroKcal, kcal: goal };
+	});
+
 	const calculated = $derived.by(() => {
 		return calculateNutritionTargets({
 			sex,
@@ -106,7 +115,7 @@
 
 	function applyCalculatedToFields() {
 		if (!calculated) return;
-		kcal = String(calculated.tdee);
+		kcal = String(calculated.targetKcal);
 		protein = String(calculated.protein);
 		fat = String(calculated.fat);
 		carbs = String(calculated.carbs);
@@ -227,8 +236,8 @@
 				<span class="manage-settings-label">{t.nutrition_estimated_tdee}</span>
 				{#if calculated}
 					<span class="nutrition-estimate-values">
-						<strong>{calculated.tdee} kcal</strong>
-						<small>BMR {calculated.bmr} kcal</small>
+						<strong>{calculated.targetKcal} kcal</strong>
+						<small>TDEE {calculated.tdee} · BMR {calculated.bmr} kcal</small>
 					</span>
 				{:else}
 					<span class="nutrition-estimate-empty">{t.nutrition_calc_need_inputs}</span>
@@ -283,6 +292,9 @@
 						class="nutrition-number-input" />
 				</label>
 			</div>
+			{#if macroKcalMismatch}
+				<p class="nutrition-macro-warning" role="status">{nutrition_macro_mismatch(macroKcalMismatch.macroKcal, macroKcalMismatch.kcal)}</p>
+			{/if}
 				</section>
 			</div>
 		</div>
@@ -294,6 +306,7 @@
 </ManageSheetShell>
 
 <style>
+	.nutrition-macro-warning { margin: 8px 12px 0; font-size: 12px; line-height: 1.4; color: #F59E0B; }
 	.nutrition-intro {
 		min-height: 38px;
 		padding: 9px 12px;

@@ -46,7 +46,8 @@
 		nutritionGoalKcal = null as number | null,
 		onaddmeal = null as (() => void) | null,
 		logDate = null as string | null,
-		initialTab = null as 'tracker' | 'supplements' | null
+		initialTab = null as 'tracker' | 'supplements' | null,
+		initialTracker = null as 'caffeine' | 'water' | 'meditation' | null
 	}: {
 		open: boolean;
 		supplements: Supplement[];
@@ -72,6 +73,7 @@
 		onaddmeal?: (() => void) | null;
 		logDate?: string | null;
 		initialTab?: 'tracker' | 'supplements' | null;
+		initialTracker?: 'caffeine' | 'water' | 'meditation' | null; // opens that tracker's entry directly (shortcuts, deep links)
 	} = $props();
 
 	function makeTimestamp(dateStr: string, timeStr: string): number {
@@ -219,6 +221,12 @@
 			const nowTime = new Date().toTimeString().slice(0, 5);
 			meditationRetroStartTime = nowTime;
 			waterRetroTime = nowTime;
+			const tracker = untrack(() => initialTracker);
+			if (tracker) {
+				trackerDrillIn = tracker;
+				waterRetroOpen = untrack(() => isRetro) && tracker === 'water';
+				meditationRetroOpen = untrack(() => isRetro) && tracker === 'meditation';
+			}
 			tick().then(() => {
 				if (!sheetEl) return;
 				if (activeSheetTab === 'supplements') sheetEl.scrollTop = sheetEl.scrollHeight;

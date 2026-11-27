@@ -3,7 +3,6 @@
 	import { goto } from '$app/navigation';
 	import { tick, onMount } from 'svelte';
 	import { t, currentLang } from '#lib/i18n.svelte';
-	import { getListIcon } from '#lib/listIcons';
 
 	type RecipeOption = { id: string; title: string; imageUrl: string | null; servings: number };
 	type PlanEntry = {
@@ -16,7 +15,6 @@
 		recipeImageUrl: string | null;
 		recipeServings: number | null;
 	};
-	type ListEntry = { id: string; name: string; iconId: string | null };
 
 	let { recipes, editMode = $bindable(false) }: { recipes: RecipeOption[]; editMode?: boolean } = $props();
 
@@ -265,71 +263,6 @@
 		}
 	}
 
-	// --- List selector sheet ---
-	let listSheetOpen = $state(false);
-	let listSheetDates = $state<string[]>([]);
-	let listSheetLists = $state<ListEntry[]>([]);
-	let listSheetLoading = $state(false);
-	let listSheetAdding = $state(false);
-	let listSheetNewMode = $state(false);
-	let listSheetNewName = $state('');
-
-	async function openListSheet(dates: string[]) {
-		listSheetDates = dates;
-		listSheetOpen = true;
-		listSheetAdding = false;
-		listSheetNewMode = false;
-		listSheetNewName = '';
-		listSheetLoading = true;
-		try {
-			const res = await fetch('/api/lists');
-			if (!res.ok) throw new Error();
-			const data = await res.json();
-			listSheetLists = data.lists ?? data ?? [];
-		} catch {
-			listSheetLists = [];
-		} finally {
-			listSheetLoading = false;
-		}
-	}
-
-	async function createNewListAndAdd() {
-		const name = listSheetNewName.trim();
-		if (listSheetAdding || !name) return;
-		listSheetAdding = true;
-		try {
-			const res = await fetch('/api/lists', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name, description: null, iconId: 'rezept' })
-			});
-			if (!res.ok) throw new Error();
-			const newList = await res.json();
-			listSheetAdding = false;
-			await addToList(newList.id);
-		} catch {
-			listSheetAdding = false;
-		}
-	}
-
-	async function addToList(listId: string) {
-		if (listSheetAdding) return;
-		listSheetAdding = true;
-		try {
-			const res = await fetch('/api/meal-plan', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ dates: listSheetDates, listId })
-			});
-			if (!res.ok) throw new Error();
-			listSheetOpen = false;
-			goto(`/listen/${listId}`);
-		} finally {
-			listSheetAdding = false;
-		}
-	}
-
-	const hasAnyEntry = $derived(Object.values(entries).some(arr => arr.length > 0));
 
 	// --- Eating-out keyword detection ---
 	const EATING_OUT_KEYWORDS = [
@@ -421,20 +354,6 @@
 		</svg>
 	</button>
 
-	{#if hasAnyEntry && !editMode}
-		<button
-			onclick={() => openListSheet(weekDays.map(d => toISO(d)).filter(d => (entries[d]?.length ?? 0) > 0))}
-			aria-label={t.meal_plan_add_week_to_list}
-			class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 active:opacity-60 transition-opacity"
-			style="background-color: color-mix(in srgb, var(--color-primary) 18%, var(--color-surface-container)); outline: 1px solid color-mix(in srgb, var(--color-primary) 35%, transparent)"
-		>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-				<line x1="3" y1="6" x2="21" y2="6"/>
-				<path d="M16 10a4 4 0 0 1-8 0"/>
-			</svg>
-		</button>
-	{/if}
 
 </div>
 
@@ -558,17 +477,6 @@
 										</button>
 									{:else}
 										<span class="text-[13px] font-semibold" style="color: var(--color-on-surface-variant)">{entry.servings ?? (entry.recipeServings ?? 2)}P</span>
-										<button
-											onclick={() => openListSheet([entry.date])}
-											aria-label={t.meal_plan_add_to_list}
-											class="w-7 h-7 flex items-center justify-center active:opacity-60"
-										>
-											<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-												<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-												<line x1="3" y1="6" x2="21" y2="6"/>
-												<path d="M16 10a4 4 0 0 1-8 0"/>
-											</svg>
-										</button>
 									{/if}
 								</div>
 							</div>
@@ -767,103 +675,6 @@
 						class="flex-1 bg-transparent outline-none"
 						style="color: var(--color-on-surface); font-size: 16px"
 					/>
-				</div>
-			{/if}
-		</div>
-	</div>
-{/if}
-
-<!-- List selector sheet -->
-{#if listSheetOpen}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-40" style="background-color: rgba(0,0,0,0.6)" onclick={() => { if (!listSheetAdding) listSheetOpen = false; }}></div>
-	<div class="fixed left-0 right-0 bottom-0 z-50 max-w-[430px] mx-auto rounded-t-3xl pt-4 flex flex-col"
-	     style="background-color: var(--modal-bg); max-height: 70dvh; padding-bottom: calc(env(safe-area-inset-bottom) + 5.5rem)">
-		<div class="flex justify-center mb-3 flex-shrink-0">
-			<div class="w-10 h-1 rounded-full" style="background-color: var(--color-surface-high)"></div>
-		</div>
-		<h2 class="px-4 text-base font-bold mb-3 flex-shrink-0" style="color: var(--color-on-surface)">{t.meal_plan_add_to_list}</h2>
-		<div class="flex-1 overflow-y-auto px-4 min-h-0">
-			{#if listSheetLoading}
-				<div class="flex justify-center py-8">
-					<div class="w-5 h-5 rounded-full border-2 animate-spin"
-					     style="border-color: var(--color-primary); border-top-color: transparent"></div>
-				</div>
-			{:else}
-				<div class="rounded-2xl overflow-hidden" style="background-color: var(--bubble-container-bg); border: 1px solid var(--bubble-container-border)">
-					{#if listSheetNewMode}
-						<div class="flex items-center gap-2 px-4"
-						     style="height: 56px; background-color: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-container))">
-							<!-- svelte-ignore a11y_autofocus -->
-							<input
-								type="text"
-								bind:value={listSheetNewName}
-								onkeydown={(e) => { if (e.key === 'Enter') createNewListAndAdd(); if (e.key === 'Escape') listSheetNewMode = false; }}
-								class="flex-1 bg-transparent outline-none font-semibold"
-								style="color: var(--color-on-surface); font-size: 16px; border: none"
-								autofocus
-							/>
-							<button
-								onclick={createNewListAndAdd}
-								disabled={!listSheetNewName.trim() || listSheetAdding}
-								class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 disabled:opacity-40 active:opacity-70"
-								style="background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dim))"
-								aria-label={t.create}
-							>
-								{#if listSheetAdding}
-									<div class="w-4 h-4 rounded-full border-2 animate-spin" style="border-color: var(--color-on-primary); border-top-color: transparent"></div>
-								{:else}
-									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-on-primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-								{/if}
-							</button>
-							<button onclick={() => listSheetNewMode = false} aria-label={t.list_cancel}
-							        class="w-8 h-8 flex items-center justify-center flex-shrink-0 active:opacity-70">
-								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-on-surface-variant)" stroke-width="2" stroke-linecap="round">
-									<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-								</svg>
-							</button>
-						</div>
-					{:else}
-						<button
-							onclick={() => listSheetNewMode = true}
-							disabled={listSheetAdding}
-							class="w-full flex items-center gap-3 px-4 active:opacity-70 disabled:opacity-40 text-left"
-							style="height: 46px"
-						>
-							<div class="w-8 h-8 flex items-center justify-center flex-shrink-0">
-								<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2.5" stroke-linecap="round">
-									<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-								</svg>
-							</div>
-							<span class="text-sm font-semibold" style="color: var(--color-primary)">{currentLang() === 'en' ? 'New list' : 'Neue Liste'}</span>
-						</button>
-					{/if}
-
-					{#each listSheetLists as list (list.id)}
-						{@const icon = getListIcon(list.iconId)}
-						<button
-							onclick={() => addToList(list.id)}
-							disabled={listSheetAdding}
-							class="w-full flex items-center gap-3 px-4 active:opacity-70 disabled:opacity-40 text-left"
-							style="height: 46px"
-						>
-							{#if icon}
-								<div class="w-8 h-8 flex items-center justify-center flex-shrink-0">
-									<svg width="17" height="17" viewBox="0 0 24 24" fill="none"
-									     stroke="{icon.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-										{@html icon.svgContent}
-									</svg>
-								</div>
-							{:else}
-								<div class="w-8 h-8 flex-shrink-0"></div>
-							{/if}
-							<span class="flex-1 text-sm font-medium truncate" style="color: var(--color-on-surface)">{list.name}</span>
-							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-outline)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<polyline points="9 18 15 12 9 6"/>
-							</svg>
-						</button>
-					{/each}
 				</div>
 			{/if}
 		</div>

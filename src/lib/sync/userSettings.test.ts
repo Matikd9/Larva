@@ -34,9 +34,9 @@ describe('offline user settings', () => {
 
 	it('stores an offline settings change and its pending marker for exactly one user', async () => {
 		initSync('user-a');
-		await queueUserSettingsPatch('user-a', { categoryOrder: ['snacks', 'obst'] }, {
-			categorySortEnabled: true,
-			categoryOrder: ['snacks', 'obst']
+		await queueUserSettingsPatch('user-a', { hiddenMoodTags: ['snacks', 'obst'] }, {
+			greetingEnabled: true,
+			hiddenMoodTags: ['snacks', 'obst']
 		});
 
 		const pending = await offlineDb.pendingMutations.toArray();
@@ -44,17 +44,17 @@ describe('offline user settings', () => {
 		expect(pending[0]).toMatchObject({ type: 'update_user_settings', userId: 'user-a' });
 		expect(await getOfflineUserSettings('user-a')).toMatchObject({
 			userId: 'user-a',
-			settings: { categoryOrder: ['snacks', 'obst'] }
+			settings: { hiddenMoodTags: ['snacks', 'obst'] }
 		});
 		expect(await getOfflineUserSettings('user-b')).toBeUndefined();
 	});
 
 	it('stores reactive-style proxy settings as plain IndexedDB data', async () => {
 		initSync('user-a');
-		const categoryOrder = new Proxy(['snacks', 'obst'], {});
+		const hiddenMoodTags = new Proxy(['snacks', 'obst'], {});
 		const effectiveSettings = new Proxy({
 			lang: 'en' as const,
-			categoryOrder
+			hiddenMoodTags
 		}, {});
 
 		await queueUserSettingsPatch('user-a', { lang: 'en' }, effectiveSettings);
@@ -64,30 +64,18 @@ describe('offline user settings', () => {
 		expect(pending[0].payload.settings).toEqual({ lang: 'en' });
 		expect((await getOfflineUserSettings('user-a'))?.settings).toEqual({
 			lang: 'en',
-			categoryOrder: ['snacks', 'obst']
+			hiddenMoodTags: ['snacks', 'obst']
 		});
 	});
 
-	it('coalesces repeated and per-list changes into one durable mutation', async () => {
+	it('coalesces repeated changes into one durable mutation', async () => {
 		initSync('user-a');
-		await queueUserSettingsPatch('user-a', {
-			listCategorySettings: { a: { enabled: true, order: ['obst'] } }
-		}, { listCategorySettings: { a: { enabled: true, order: ['obst'] } } });
-		await queueUserSettingsPatch('user-a', {
-			listCategorySettings: { b: { enabled: true, order: ['snacks'] } }
-		}, { listCategorySettings: {
-			a: { enabled: true, order: ['obst'] },
-			b: { enabled: true, order: ['snacks'] }
-		} });
+		await queueUserSettingsPatch('user-a', { waterGoalMl: 2000 }, { waterGoalMl: 2000 });
+		await queueUserSettingsPatch('user-a', { caffeineLimitMg: 300 }, { waterGoalMl: 2000, caffeineLimitMg: 300 });
 
 		const pending = await offlineDb.pendingMutations.toArray();
 		expect(pending).toHaveLength(1);
-		expect(pending[0].payload.settings).toEqual({
-			listCategorySettings: {
-				a: { enabled: true, order: ['obst'] },
-				b: { enabled: true, order: ['snacks'] }
-			}
-		});
+		expect(pending[0].payload.settings).toEqual({ waterGoalMl: 2000, caffeineLimitMg: 300 });
 
 		offlineDb.close();
 		await offlineDb.open();
@@ -140,12 +128,12 @@ describe('offline user settings', () => {
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(jsonResponse({
 				error: 'settings_conflict',
-				settings: { theme: 'system', categoryOrder: ['obst', 'snacks'] },
+				settings: { theme: 'system', hiddenMoodTags: ['obst', 'snacks'] },
 				settingsRevision: 2
 			}, 409))
 			.mockResolvedValueOnce(jsonResponse({
 				ok: true,
-				settings: { theme: 'dark', categoryOrder: ['obst', 'snacks'] },
+				settings: { theme: 'dark', hiddenMoodTags: ['obst', 'snacks'] },
 				settingsRevision: 3
 			}));
 		vi.stubGlobal('fetch', fetchMock);
@@ -156,31 +144,31 @@ describe('offline user settings', () => {
 		const retryBody = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
 		expect(retryBody).toEqual({ settings: { theme: 'dark' }, settingsRevision: 2 });
 		expect(await getOfflineUserSettings('user-a')).toMatchObject({
-			settings: { theme: 'dark', categoryOrder: ['obst', 'snacks'] },
+			settings: { theme: 'dark', hiddenMoodTags: ['obst', 'snacks'] },
 			revision: 3
 		});
 	});
 
 	it('keeps a local pending sort order over a stale server response during reload', async () => {
-		await offlineDb.userSettings.put({ userId: 'user-a', settings: { categoryOrder: ['obst'] }, revision: 2, updatedAt: 1 });
+		await offlineDb.userSettings.put({ userId: 'user-a', settings: { hiddenMoodTags: ['obst'] }, revision: 2, updatedAt: 1 });
 		initSync('user-a');
-		await queueUserSettingsPatch('user-a', { categoryOrder: ['snacks', 'obst'] }, {
-			categoryOrder: ['snacks', 'obst']
+		await queueUserSettingsPatch('user-a', { hiddenMoodTags: ['snacks', 'obst'] }, {
+			hiddenMoodTags: ['snacks', 'obst']
 		});
 		const fetchMock = vi.fn()
 			.mockRejectedValueOnce(new TypeError('offline during drain'))
 			.mockResolvedValueOnce(jsonResponse({
-				settings: { categoryOrder: ['obst'] },
+				settings: { hiddenMoodTags: ['obst'] },
 				settingsRevision: 2
 			}));
 		vi.stubGlobal('fetch', fetchMock);
 
 		const row = await refreshUserSettings('user-a', {
-			settings: { categoryOrder: ['obst'] },
+			settings: { hiddenMoodTags: ['obst'] },
 			settingsRevision: 2
 		});
 
-		expect(row.settings.categoryOrder).toEqual(['snacks', 'obst']);
+		expect(row.settings.hiddenMoodTags).toEqual(['snacks', 'obst']);
 		expect(await offlineDb.pendingMutations.count()).toBe(1);
 	});
 
@@ -235,16 +223,16 @@ describe('offline user settings', () => {
 			.mockImplementationOnce(() => new Promise<Response>(resolve => { resolveFirst = resolve; }))
 			.mockResolvedValueOnce(jsonResponse({
 				ok: true,
-				settings: { theme: 'dark', categorySortEnabled: false },
+				settings: { theme: 'dark', greetingEnabled: false },
 				settingsRevision: 2
 			}));
 		vi.stubGlobal('fetch', fetchMock);
 
 		const drain = drainPendingMutations();
 		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-		await queueUserSettingsPatch('user-a', { categorySortEnabled: false }, {
+		await queueUserSettingsPatch('user-a', { greetingEnabled: false }, {
 			theme: 'dark',
-			categorySortEnabled: false
+			greetingEnabled: false
 		});
 		resolveFirst(jsonResponse({ ok: true, settings: { theme: 'dark' }, settingsRevision: 1 }));
 		await drain;
@@ -252,7 +240,7 @@ describe('offline user settings', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(await offlineDb.pendingMutations.count()).toBe(0);
 		expect(await getOfflineUserSettings('user-a')).toMatchObject({
-			settings: { theme: 'dark', categorySortEnabled: false },
+			settings: { theme: 'dark', greetingEnabled: false },
 			revision: 2
 		});
 	});

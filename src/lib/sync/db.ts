@@ -1,67 +1,22 @@
-import Dexie, { type EntityTable, type Table } from 'dexie';
+import Dexie, { type EntityTable } from 'dexie';
 
 export interface AccountCache {
 	cacheUserId?: string;
 	userId?: string;
 }
 
-interface OfflineList extends AccountCache {
-	id: string;
-	iconId?: string | null;
-	name: string;
-	description: string | null;
-	ownerId: string;
-	openCount: number;
-	createdAt?: number;
-	updatedAt: number;
-	locationLat?: number | null;
-	locationLng?: number | null;
-	locationName?: string | null;
-}
-
-interface OfflineItem extends AccountCache {
-	id: string;
-	listId: string;
-	name: string;
-	quantityInfo: string | null;
-	isChecked: boolean;
-	checkedAt: number | null;
-	categoryOverride: string | null;
-	createdBy?: string | null;
-	createdAt?: number;
-	updatedAt: number;
-	localConfirmedAt?: number;
-}
-
 interface PendingMutation {
 	id?: number;
 	userId?: string;
 	type:
-		| 'create_list'
-		| 'update_list'
-		| 'delete_list'
-		| 'create_item'
-		| 'update_item'
-		| 'delete_item'
 		| 'create_supplement_log'
 		| 'delete_supplement_log'
 		| 'create_water_log'
 		| 'create_caffeine_log'
 		| 'create_meditation_log'
-		| 'set_category_preference'
-		| 'delete_category_preference'
-		| 'set_favorite'
-		| 'delete_favorite'
 		| 'update_user_settings';
 	payload: Record<string, unknown>;
 	createdAt: number;
-}
-
-interface OfflineCategoryPreference {
-	userId: string;
-	normalizedName: string;
-	categoryOverride: string;
-	updatedAt: number;
 }
 
 interface OfflineUserSettings {
@@ -69,15 +24,6 @@ interface OfflineUserSettings {
 	settings: Record<string, unknown>;
 	revision: number;
 	updatedAt: number;
-	favorites?: OfflineFavorite[];
-	favoritesUpdatedAt?: number;
-}
-
-interface OfflineFavorite {
-	name: string;
-	quantityInfo: string | null;
-	categoryOverride: string | null;
-	createdAt?: number;
 }
 
 interface OfflineSupplement extends AccountCache {
@@ -172,8 +118,6 @@ interface OfflineCaffeineDrink {
 }
 
 class GrolydDb extends Dexie {
-	lists!: EntityTable<OfflineList, 'id'>;
-	items!: EntityTable<OfflineItem, 'id'>;
 	pendingMutations!: EntityTable<PendingMutation, 'id'>;
 	supplements!: EntityTable<OfflineSupplement, 'id'>;
 	supplementLogs!: EntityTable<OfflineSupplementLog, 'id'>;
@@ -183,11 +127,8 @@ class GrolydDb extends Dexie {
 	caffeineLogs!: EntityTable<OfflineCaffeineLog, 'id'>;
 	meditationLogs!: EntityTable<OfflineMeditationLog, 'id'>;
 	caffeineDrinks!: EntityTable<OfflineCaffeineDrink, 'id'>;
-	categoryPreferences!: Table<OfflineCategoryPreference, [string, string]>;
 	userSettings!: EntityTable<OfflineUserSettings, 'userId'>;
 	cacheMeta!: EntityTable<{ key: string; value: string | null }, 'key'>;
-	accountLists!: Table<OfflineList & { cacheUserId: string }, [string, string]>;
-	accountItems!: Table<OfflineItem & { cacheUserId: string }, [string, string]>;
 
 	constructor() {
 		super('groly');
@@ -224,13 +165,21 @@ class GrolydDb extends Dexie {
 			accountLists: '[cacheUserId+id], cacheUserId',
 			accountItems: '[cacheUserId+id], cacheUserId, [cacheUserId+listId]'
 		});
+		// Shopping lists were removed: drop their tables and any of their queued writes.
+		this.version(9).stores({
+			lists: null,
+			items: null,
+			categoryPreferences: null,
+			accountLists: null,
+			accountItems: null
+		}).upgrade(tx => tx.table('pendingMutations')
+			.filter(mutation => /^(create|update|delete)_(list|item)$|_(category_preference|favorite)$/.test(mutation.type))
+			.delete());
 	}
 }
 
 export const offlineDb = new GrolydDb();
 export type {
-	OfflineList,
-	OfflineItem,
 	PendingMutation,
 	OfflineSupplement,
 	OfflineSupplementLog,
@@ -240,7 +189,5 @@ export type {
 	OfflineCaffeineLog,
 	OfflineMeditationLog,
 	OfflineCaffeineDrink,
-	OfflineCategoryPreference,
-	OfflineUserSettings,
-	OfflineFavorite
+	OfflineUserSettings
 };

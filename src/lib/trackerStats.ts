@@ -5,11 +5,12 @@ import { toLocalDateKey, tsToDateKey } from './dates';
 
 export type DateRange = { from: number; to: number };
 
-export type SupplementMeta = { id: string; name: string; unit: string };
+export type SupplementMeta = { id: string; name: string; unit: string; createdAt?: number };
 export type SupplementLogLite = { supplementId: string; amount: number; loggedAt: number };
 export type ScheduleLite = { supplementId: string; days: string; time: string; active: boolean };
 
-export type DailyFill = 'full' | 'partial' | 'none' | 'unscheduled';
+// 'out': before the supplement existed or in the future — neither planned nor missed.
+export type DailyFill = 'full' | 'partial' | 'none' | 'unscheduled' | 'out';
 
 export type SupplementAdherence = {
 	supplementId: string;
@@ -20,17 +21,20 @@ export type SupplementAdherence = {
 	totalDoses: number;   // sum of log.amount (legacy "total")
 	percent: number;      // 0..100; if planned==0, equals taken/totalDays*100
 	totalDays: number;    // number of days in range
+	countableDays: number; // days that can hold data: existed already and not in the future
 	daily: DailyFill[];   // length === totalDays, ordered earliest → latest
 };
 
 export type TrackerStats = {
-	avgPerDay: number;
+	avgPerDay: number;    // over days with records only; absence of a record is not a zero
 	min: number;
 	max: number;
-	activeDays: number;
-	totalDays: number;
+	activeDays: number;   // days with at least one record
+	totalDays: number;    // days in range
+	countableDays: number; // days up to today (future days cannot have records yet)
 	total: number;
-	daily: number[];      // length === totalDays
+	daily: number[];      // length === totalDays; 0 where nothing was recorded
+	logCounts: number[];  // records per day; tells "recorded 0" apart from "no record"
 };
 
 export type MoodStats = {
@@ -68,9 +72,11 @@ export function computeAdherence(
 	supps: SupplementMeta[],
 	schedules: ScheduleLite[],
 	logs: SupplementLogLite[],
-	range: DateRange
+	range: DateRange,
+	now = new Date()
 ): SupplementAdherence[] {
 	const days = eachDayInRange(range);
+	const today = toLocalDateKey(now);
 	const totalDays = days.length;
 	if (totalDays === 0) return [];
 
@@ -126,9 +132,17 @@ export function computeAdherence(
 		let takenDaysAll = 0;       // any-day takes (including extra outside schedule)
 		let scheduledTaken = 0;     // capped: days planned AND taken at least 1×
 		let plannedDays = 0;
+		let countableDays = 0;
+		const firstDay = supp.createdAt ? tsToDateKey(supp.createdAt) : '';
 		for (let i = 0; i < totalDays; i++) {
 			const p = planned[i];
 			const t = taken[i];
+			// A log before createdAt (e.g. imported) still counts; otherwise those days are out of scope.
+			if (days[i] > today || (days[i] < firstDay && t === 0)) {
+				daily.push('out');
+				continue;
+			}
+			countableDays += 1;
 			if (t > 0) takenDaysAll += 1;
 			if (p > 0) plannedDays += 1;
 			if (p > 0 && t > 0) scheduledTaken += 1;
@@ -146,7 +160,7 @@ export function computeAdherence(
 		//   • with schedule: scheduledTaken / plannedDays (capped to 100% by construction)
 		//   • without schedule: takenDaysAll / totalDays (just "on how many days")
 		const takenForDisplay = hasSchedule ? scheduledTaken : takenDaysAll;
-		const denomForDisplay = hasSchedule ? plannedDays : totalDays;
+		const denomForDisplay = hasSchedule ? plannedDays : countableDays;
 		const percent = denomForDisplay > 0
 			? Math.min(100, Math.round((takenForDisplay / denomForDisplay) * 100))
 			: 0;
@@ -160,6 +174,7 @@ export function computeAdherence(
 			totalDoses: totalDosesBySupp.get(supp.id) ?? 0,
 			percent,
 			totalDays,
+			countableDays,
 			daily
 		});
 	}
@@ -169,8 +184,9 @@ export function computeAdherence(
 }
 
 export function computeTrackerStats(
-	logs: { value: number; loggedAt: number }[],
-	range: DateRange
+	logs: { value: number; loggedAt?: number; date?: string }[],
+	range: DateRange,
+	now = new Date()
 ): TrackerStats {
 	const days = eachDayInRange(range);
 	const totalDays = days.length;
@@ -178,21 +194,32 @@ export function computeTrackerStats(
 	days.forEach((d, i) => dayIndex.set(d, i));
 
 	const daily = new Array(totalDays).fill(0) as number[];
+	const logCounts = new Array(totalDays).fill(0) as number[];
 	for (const log of logs) {
-		const key = tsToDateKey(log.loggedAt);
+		const key = log.date ?? tsToDateKey(log.loggedAt ?? 0);
 		const idx = dayIndex.get(key);
 		if (idx === undefined) continue;
 		daily[idx] += log.value;
+		logCounts[idx] += 1;
 	}
 
-	const nonZero = daily.filter(v => v > 0);
-	const total = daily.reduce((s, v) => s + v, 0);
-	const activeDays = nonZero.length;
-	const avgPerDay = totalDays > 0 ? total / totalDays : 0;
-	const min = nonZero.length > 0 ? Math.min(...nonZero) : 0;
-	const max = nonZero.length > 0 ? Math.max(...nonZero) : 0;
+	const recorded = daily.filter((_, i) => logCounts[i] > 0);
+	const total = recorded.reduce((s, v) => s + v, 0);
+	const activeDays = recorded.length;
+	const today = toLocalDateKey(now);
+	const countableDays = days.filter(d => d <= today).length;
 
-	return { avgPerDay, min, max, activeDays, totalDays, total, daily };
+	return {
+		avgPerDay: activeDays > 0 ? total / activeDays : 0,
+		min: activeDays > 0 ? Math.min(...recorded) : 0,
+		max: activeDays > 0 ? Math.max(...recorded) : 0,
+		activeDays,
+		totalDays,
+		countableDays,
+		total,
+		daily,
+		logCounts
+	};
 }
 
 export function computeMoodStats(

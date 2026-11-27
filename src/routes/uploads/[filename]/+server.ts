@@ -3,9 +3,7 @@ import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { error } from '@sveltejs/kit';
-
-const DB_PATH = process.env.DATABASE_URL ?? './data/groly.db';
-const UPLOADS_DIR = path.resolve(path.dirname(DB_PATH), 'uploads');
+import { UPLOADS_DIR } from '#lib/server/uploads';
 
 export const GET: RequestHandler = async ({ params }) => {
 	const filename = params.filename;
@@ -27,7 +25,9 @@ export const GET: RequestHandler = async ({ params }) => {
 		'.jpg': 'image/jpeg',
 		'.jpeg': 'image/jpeg',
 		'.gif': 'image/gif',
-		'.webp': 'image/webp'
+		'.webp': 'image/webp',
+		'.avif': 'image/avif',
+		'.heic': 'image/heic'
 	};
 	const contentType = MIME[ext] ?? 'application/octet-stream';
 

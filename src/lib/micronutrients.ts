@@ -263,3 +263,27 @@ export function formatMicroValue(val: number | null | undefined, unit: string): 
 	}
 	return `${Number(val.toFixed(1))} ${unit}`;
 }
+
+export type MicroCoverage = { total: number; coveredKcal: number };
+
+/**
+ * Sums each micronutrient over food components and the kcal of the components that report it.
+ * Missing data is not zero: coveredKcal / total kcal says how much of the diet the sum describes.
+ * Stored micros drop zero values, so a food with a true zero also counts as "no data".
+ */
+export function aggregateMicroCoverage(rows: { kcal: number; microsJson: string | null }[]): { kcal: number; micros: Partial<Record<keyof EssentialMicros, MicroCoverage>> } {
+	let kcal = 0;
+	const micros: Partial<Record<keyof EssentialMicros, MicroCoverage>> = {};
+	for (const row of rows) {
+		kcal += row.kcal;
+		const parsed = parseMicrosJson(row.microsJson);
+		for (const meta of ESSENTIAL_MICROS_META) {
+			const value = parsed[meta.key];
+			if (typeof value !== 'number' || value <= 0) continue;
+			const entry = (micros[meta.key] ??= { total: 0, coveredKcal: 0 });
+			entry.total += value;
+			entry.coveredKcal += row.kcal;
+		}
+	}
+	return { kcal, micros };
+}

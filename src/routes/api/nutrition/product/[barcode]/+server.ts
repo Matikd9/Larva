@@ -105,7 +105,7 @@ export const PATCH: RequestHandler = async (event) => {
 		db.insert(barcodeCache)
 			.values({
 				barcode: code,
-				name: name || `Producto ${code}`,
+				name: name || code, // neutral fallback; the editor treats a name containing the barcode as a placeholder
 				brand: brand ?? null,
 				servingQuantity: servingQuantity ?? null,
 				servingSize: servingSize ?? (servingQuantity ? `${servingQuantity} g` : null),

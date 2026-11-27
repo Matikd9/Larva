@@ -174,6 +174,23 @@ export function extractOffMicros(n: Record<string, unknown>): EssentialMicros {
 	};
 }
 
+// Search ranks local products higher. Defaults keep this installation's Chilean preference; empty disables it.
+const PREFERRED_BARCODE_PREFIX = (process.env.OFF_PREFERRED_BARCODE_PREFIX ?? '780').trim();
+const PREFERRED_COUNTRY = (process.env.OFF_PREFERRED_COUNTRY ?? 'chile').trim().toLowerCase();
+
+export function isPreferredProduct(code: string | number | undefined, countries: unknown): boolean {
+	if (PREFERRED_BARCODE_PREFIX && code != null && String(code).startsWith(PREFERRED_BARCODE_PREFIX)) return true;
+	return !!PREFERRED_COUNTRY && Array.isArray(countries) && countries.some((c) => typeof c === 'string' && c.includes(PREFERRED_COUNTRY));
+}
+
+/** kcal per 100 g; many products only list kJ (1 kcal = 4.184 kJ). */
+export function offKcalPer100(n: Record<string, unknown>): number | null {
+	const kcal = num(n['energy-kcal_100g']);
+	if (kcal != null) return kcal;
+	const kj = num(n['energy-kj_100g']);
+	return kj != null ? Math.round((kj / 4.184) * 10) / 10 : null;
+}
+
 function toProductData(barcode: string, product: OffProduct): ProductData | null {
 	const name = extractName(product);
 	if (!name) return null;
@@ -187,7 +204,7 @@ function toProductData(barcode: string, product: OffProduct): ProductData | null
 		servingQuantity: parseServingQuantity(product.serving_quantity, product.serving_size),
 		nutriscoreGrade: product.nutriscore_grade ?? null,
 		novaGroup: typeof product.nova_group === 'number' ? product.nova_group : null,
-		kcalPer100: num(n['energy-kcal_100g']),
+		kcalPer100: offKcalPer100(n),
 		proteinPer100: num(n['proteins_100g']),
 		fatPer100: num(n['fat_100g']),
 		carbsPer100: num(n['carbohydrates_100g']),
@@ -390,12 +407,12 @@ export function searchLocalCache(query: string, limit = 15): ProductData[] {
 	const prefixNorm = `${stripAccents(q)}%`;
 	const rows = db.select().from(barcodeCache)
 		.where(and(...wordConditions))
-		// Relevanz: exakter Name → Name-Prefix → Chilenischer Barcode (780) → Marken-Prefix → Rest
+		// Relevanz: exakter Name → Name-Prefix → bevorzugtes Barcode-Präfix → Marken-Prefix → Rest
 		.orderBy(
 			sql`CASE
 				WHEN ${nameL} = ${q} THEN 0
 				WHEN ${nameL} LIKE ${prefix} OR ${nameL} LIKE ${prefixNorm} THEN 1
-				WHEN ${barcodeCache.barcode} LIKE '780%' THEN 2
+				WHEN ${PREFERRED_BARCODE_PREFIX ? sql`${barcodeCache.barcode} LIKE ${PREFERRED_BARCODE_PREFIX + '%'}` : sql`0`} THEN 2
 				WHEN ${brandL} LIKE ${prefix} OR ${brandL} LIKE ${prefixNorm} THEN 3
 				ELSE 4 END`,
 			desc(barcodeCache.lastSeenAt)
@@ -447,16 +464,14 @@ export async function searchOff(query: string, limit = 15, signal?: AbortSignal)
 		const hits = Array.isArray(data.hits) ? (data.hits as OffProduct[]) : [];
 		const qLower = q.toLowerCase();
 
-		// Treffer nach Relevanz + Bevorzugung chilenischer Produkte sortieren
+		// Treffer nach Relevanz + Bevorzugung lokaler Produkte (OFF_PREFERRED_*) sortieren
 		hits.sort((a, b) => {
 			const aName = (a.product_name || '').toLowerCase();
 			const bName = (b.product_name || '').toLowerCase();
 			const aBrand = (Array.isArray(a.brands) ? a.brands.join(' ') : (a.brands || '')).toLowerCase();
 			const bBrand = (Array.isArray(b.brands) ? b.brands.join(' ') : (b.brands || '')).toLowerCase();
-			const aChile = (a.code && String(a.code).startsWith('780')) ||
-				(Array.isArray(a.countries_tags) && a.countries_tags.some((c: string) => c.includes('chile')));
-			const bChile = (b.code && String(b.code).startsWith('780')) ||
-				(Array.isArray(b.countries_tags) && b.countries_tags.some((c: string) => c.includes('chile')));
+			const aChile = isPreferredProduct(a.code, a.countries_tags);
+			const bChile = isPreferredProduct(b.code, b.countries_tags);
 
 			function rank(name: string, brand: string, isChile: boolean | undefined) {
 				let r = 10;

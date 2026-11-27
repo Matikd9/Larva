@@ -1,6 +1,5 @@
 // Kategorie-Icons für generische Lebensmittel (genericFoods.category).
-// 5 Pfade sind 1:1 aus den Einkaufslisten-Kategorien übernommen (siehe categories.ts),
-// 8 neu im selben Lucide-Stil ergänzt. Gerendert wird wie die Listen-Icons:
+// Lucide-Stil. Gerendert mit:
 // viewBox 0 0 24 24, fill="none", stroke=<color>, stroke-width≈1.3, runde Enden.
 
 export type NutritionCategory =
@@ -13,7 +12,6 @@ export interface NutritionCategoryIcon {
 }
 
 export const NUTRITION_CATEGORY_ICONS: Record<NutritionCategory, NutritionCategoryIcon> = {
-	// --- aus den Einkaufslisten übernommen ---
 	bread: {
 		color: '#D97706',
 		svgContent: `<g transform="translate(12,12) scale(1.1) translate(-12,-12)"><path d="M3 11a5 5 0 0 1 10 0v9H3v-9z"/><path d="M13 11a5 5 0 0 1 8 0v9h-8v-9z"/></g>`

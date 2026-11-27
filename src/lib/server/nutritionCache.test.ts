@@ -16,7 +16,7 @@ vi.mock('#lib/db', async () => {
 import { db } from '#lib/db';
 import { barcodeCache } from '#lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { buildMealComponentRows, componentMicrosPer100, isValidDateKey, searchOff } from './nutrition';
+import { buildMealComponentRows, componentMicrosPer100, isValidDateKey, offKcalPer100, searchOff } from './nutrition';
 
 describe('meal component validation', () => {
 	const base = { displayName: 'Skyr', amount: 2, unit: 'portion', gramsPerPiece: 150, kcalPer100: 60 };
@@ -72,5 +72,14 @@ describe('barcode cache refresh from Open Food Facts', () => {
 		const untouched = db.select().from(barcodeCache).where(eq(barcodeCache.barcode, '7800000000002')).get();
 		expect(edited).toMatchObject({ name: 'Corrected', kcalPer100: 380 });
 		expect(untouched).toMatchObject({ name: 'From OFF', kcalPer100: 500 });
+	});
+});
+
+describe('offKcalPer100', () => {
+	it('prefers kcal and converts kJ-only products', () => {
+		expect(offKcalPer100({ 'energy-kcal_100g': 52, 'energy-kj_100g': 218 })).toBe(52);
+		expect(offKcalPer100({ 'energy-kj_100g': 1674 })).toBe(400.1);
+		expect(offKcalPer100({ 'energy-kj_100g': '418.4' })).toBe(100);
+		expect(offKcalPer100({})).toBeNull();
 	});
 });

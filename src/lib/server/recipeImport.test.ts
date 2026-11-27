@@ -171,6 +171,14 @@ describe('recipe import normalization', () => {
 		expect(parseIngredient('1,5 kg Kartoffeln')).toEqual({ amount: '1,5', unit: 'kg', name: 'Kartoffeln' });
 	});
 
+	it('only treats known units as units', () => {
+		expect(parseIngredient('2 große Eier')).toEqual({ amount: '2', unit: null, name: 'große Eier' });
+		expect(parseIngredient('3 Zehen Knoblauch')).toEqual({ amount: '3', unit: 'Zehen', name: 'Knoblauch' });
+		expect(parseIngredient('2 tbsp. olive oil')).toEqual({ amount: '2', unit: 'tbsp', name: 'olive oil' });
+		expect(parseIngredient('1 cucharadita de sal')).toEqual({ amount: '1', unit: 'cucharadita', name: 'de sal' });
+		expect(parseIngredient('4 ripe tomatoes')).toEqual({ amount: '4', unit: null, name: 'ripe tomatoes' });
+	});
+
 	it('prefers nested section steps and derives a missing time component from total time', () => {
 		const result = parseRecipeHtml(recipeHtml({
 			'@type': 'Recipe',

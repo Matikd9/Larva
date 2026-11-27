@@ -1,10 +1,8 @@
 import { db } from '#lib/db';
-import { barcodeCache, items, itemHistory, sessions, mealPlanEntries, userInvites } from '#lib/db/schema';
-import { and, eq, lt, lte, or, isNotNull, isNull } from 'drizzle-orm';
+import { barcodeCache, sessions, mealPlanEntries, userInvites } from '#lib/db/schema';
+import { and, lt, lte, or, isNotNull, isNull } from 'drizzle-orm';
 
 const SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000;
-const TWO_MONTHS_S = 60 * 24 * 60 * 60;
-const SIX_MONTHS_S = 6 * 30 * 24 * 60 * 60;
 const THIRTY_DAYS_S = 30 * 24 * 60 * 60;
 
 export function cleanupBarcodeCache() {
@@ -13,10 +11,6 @@ export function cleanupBarcodeCache() {
 
 export function cleanupOldData() {
 	const nowS = Math.floor(Date.now() / 1000);
-	// Abgehakte Items löschen, die älter als 60 Tage sind
-	db.delete(items).where(and(eq(items.isChecked, true), lt(items.checkedAt, nowS - TWO_MONTHS_S))).run();
-	// Vorschläge löschen, die seit mehr als 6 Monaten nicht genutzt wurden
-	db.delete(itemHistory).where(lt(itemHistory.lastUsedAt, nowS - SIX_MONTHS_S)).run();
 	// Abgelaufene Sessions löschen
 	db.delete(sessions).where(lt(sessions.expiresAt, nowS)).run();
 	// Wochenplan-Einträge löschen, die älter als 6 Monate sind

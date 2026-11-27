@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { t } from '#lib/i18n.svelte';
-	import { formatTime } from '#lib/dates';
+	import { formatTime, tsToDateKey } from '#lib/dates';
 	import type { CaffeineDrink } from '#lib/db/schema';
 	import CaffeineEditLogSheet from './CaffeineEditLogSheet.svelte';
 	import CaffeineDrinkPickerSheet from './CaffeineDrinkPickerSheet.svelte';
@@ -20,7 +20,8 @@
 		focusMode = false,
 		onfocus,
 		oncollapse,
-		anchorId
+		anchorId,
+		logDate = null
 	}: {
 		logs: { id: string; drinkName: string; amountMl: number; caffeineMg: number; loggedAt: number }[];
 		limitMg: number;
@@ -34,6 +35,7 @@
 		onfocus?: () => void;
 		oncollapse?: () => void;
 		anchorId?: string;
+		logDate?: string | null; // the day quick adds go to (default today)
 	} = $props();
 
 	let pickerOpen = $state(false);
@@ -46,6 +48,7 @@
 		defaultMl: number;
 		defaultCaffeineMg: number;
 		time: string;
+		date?: string;
 	};
 	let editSheet = $state<EditSheet | null>(null);
 
@@ -86,7 +89,8 @@
 			caffeineMg: log.caffeineMg,
 			defaultMl: drink?.defaultMl ?? log.amountMl,
 			defaultCaffeineMg: drink?.caffeineMg ?? log.caffeineMg,
-			time: toHHMM(log.loggedAt)
+			time: toHHMM(log.loggedAt),
+			date: tsToDateKey(log.loggedAt)
 		};
 	}
 
@@ -142,7 +146,7 @@
 		{/snippet}
 		{#snippet details()}
 			{#if focusMode}
-				<CaffeineDrinkPickerContent {drinks} onlogged={handleFocusLogged} integrated />
+				<CaffeineDrinkPickerContent {drinks} {logDate} onlogged={handleFocusLogged} integrated />
 			{:else}
 				{#if exceeded}<p class="text-[10px] mb-1.5" style="color: #EF4444">{t.caffeine_limit_exceeded}</p>{/if}
 				<div class="space-y-1.5">
@@ -252,4 +256,4 @@
 {/if}
 
 <CaffeineEditLogSheet bind:sheet={editSheet} onreload={onlogged} />
-<CaffeineDrinkPickerSheet bind:open={pickerOpen} {drinks} onlogged={onlogged} />
+<CaffeineDrinkPickerSheet bind:open={pickerOpen} {drinks} {logDate} onlogged={onlogged} />

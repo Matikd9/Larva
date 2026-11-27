@@ -1,18 +1,10 @@
 import type { Locale } from '#lib/paraglide/runtime';
-import { DEFAULT_CATEGORY_ORDER } from '#lib/categories';
 
-export type ListCategorySettings = {
-	enabled: boolean;
-	order: string[];
-};
-
-export type ShortcutAction = 'go' | 'add' | 'scanner' | 'log-tracker' | 'log-supplement';
+export type ShortcutAction = 'log-meal' | 'log-supplement' | 'log-water' | 'log-caffeine' | 'log-mood' | 'log-meditation' | 'log-tracker';
 
 export type Shortcut = {
 	id: string;
 	name: string;
-	listId?: string;
-	listName?: string;
 	action: ShortcutAction;
 };
 
@@ -21,16 +13,7 @@ export type UserSettings = {
 	timeZone?: string;
 	theme?: 'system' | 'light' | 'dark';
 	colorScheme?: 'crimson' | 'forest' | 'classic' | 'indigo';
-	categorySortEnabled?: boolean;
-	categoryOrder?: string[];
-	listCategorySettings?: Record<string, ListCategorySettings>;
 	shortcuts?: Shortcut[];
-	locationNavEnabled?: boolean;
-	listLocationDisabled?: string[];
-	itemLayout?: 'grid' | 'list';
-	showAllCheckedItems?: boolean;
-	showFavoriteIndicator?: boolean;
-	showSupplementTracker?: boolean;
 	showRecipes?: boolean;
 	supplementSortOrder?: 'az' | 'za' | 'freq';
 	waterTrackerEnabled?: boolean;
@@ -59,13 +42,10 @@ export type UserSettings = {
 	aiOpenaiModel?: 'gpt-4o-mini' | 'gpt-4o';
 	hiddenMoodTags?: string[];
 	greetingEnabled?: boolean;
-	wakeLockLists?: boolean;
 	wakeLockRecipes?: boolean;
 	wakeLockMeditation?: boolean;
 };
 
 export const DEFAULT_SETTINGS = {
-	lang: 'en' as Locale,
-	categorySortEnabled: true,
-	categoryOrder: [...DEFAULT_CATEGORY_ORDER]
+	lang: 'en' as Locale
 };

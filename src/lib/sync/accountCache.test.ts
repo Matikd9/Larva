@@ -3,7 +3,7 @@ import Dexie from 'dexie';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { offlineDb } from './db';
 import { migrateAccountCache } from './accountCache';
-import { cacheListsData, cacheItemsData, cacheRecipes, cacheRecipeDetail, cacheWaterLogs, cacheCaffeineLogs, cacheMeditationLogs, drainPendingMutations, getOfflineLists, getOfflineItems, getOfflineRecipes, getOfflineRecipeDetail, getOfflineWaterLogsToday, getOfflineCaffeineLogsToday, getOfflineMeditationLogsToday, initSync, queueItemUpdate } from './manager';
+import { cacheRecipes, cacheRecipeDetail, cacheWaterLogs, cacheCaffeineLogs, cacheMeditationLogs, drainPendingMutations, getOfflineRecipes, getOfflineRecipeDetail, getOfflineWaterLogsToday, getOfflineCaffeineLogsToday, getOfflineMeditationLogsToday, initSync } from './manager';
 
 beforeEach(async () => {
 	initSync(null); vi.restoreAllMocks(); vi.unstubAllGlobals();
@@ -12,27 +12,8 @@ beforeEach(async () => {
 afterAll(async () => { initSync(null); offlineDb.close(); await offlineDb.delete(); });
 
 describe('private offline caches', () => {
-	it('retains independent views of a shared list and keeps unsent edits with their author', async () => {
-		vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
-		const list = { id: 'shared-list', ownerId: 'alice', name: 'Shared', description: null, openCount: 1, updatedAt: 1 };
-		const item = { id: 'shared-item', listId: list.id, name: 'Milk', quantityInfo: null, categoryOverride: null, isChecked: false, checkedAt: null, updatedAt: 1 };
-		initSync('alice'); await cacheListsData([list]); await cacheItemsData([item]);
-		await queueItemUpdate('alice', item.id, { name: 'Alice unsent change' });
-		initSync('bob'); await cacheListsData([list]); await cacheItemsData([item]);
-		expect((await getOfflineItems(list.id))[0].name).toBe('Milk');
+	it('isolates recipes, details and tracker logs across account switches and reloads', async () => {
 		initSync('alice');
-		expect(await getOfflineLists()).toHaveLength(1);
-		expect((await getOfflineItems(list.id))[0].name).toBe('Alice unsent change');
-		expect((await offlineDb.pendingMutations.toArray())[0].userId).toBe('alice');
-		initSync('bob'); await cacheListsData([], 'bob', true);
-		expect(await getOfflineLists()).toEqual([]);
-		expect(await getOfflineItems(list.id)).toEqual([]);
-		initSync('alice'); expect(await getOfflineItems(list.id)).toHaveLength(1);
-	});
-
-	it('isolates lists, recipes, details and tracker logs across account switches and reloads', async () => {
-		initSync('alice');
-		await cacheListsData([{ id: 'list-a', ownerId: 'alice', name: 'Private list', description: null, openCount: 0, updatedAt: 1 }]);
 		const recipe = { id: 'recipe-a', title: 'Private recipe', description: null, imageUrl: null, servings: 2, prepTime: null, cookTime: null, updatedAt: 1 };
 		await cacheRecipes([recipe]);
 		await cacheRecipeDetail({ ...recipe, sourceUrl: null, ingredients: [], steps: [] });
@@ -40,17 +21,15 @@ describe('private offline caches', () => {
 		await cacheCaffeineLogs([{ id: 'coffee-a', drinkName: 'Coffee', caffeineMg: 80, amountMl: 125, loggedAt: Date.now() }]);
 		await cacheMeditationLogs([{ id: 'meditation-a', durationSeconds: 300, loggedAt: Date.now() }]);
 		initSync('bob');
-		expect(await getOfflineLists()).toEqual([]);
 		expect(await getOfflineRecipes()).toEqual([]);
 		expect(await getOfflineRecipeDetail(recipe.id)).toBeUndefined();
 		expect(await getOfflineWaterLogsToday()).toEqual([]);
 		expect(await getOfflineCaffeineLogsToday()).toEqual([]);
 		expect(await getOfflineMeditationLogsToday()).toEqual([]);
 		initSync(null);
-		expect(await getOfflineLists()).toEqual([]);
+		expect(await getOfflineRecipes()).toEqual([]);
 		offlineDb.close(); await offlineDb.open();
 		initSync('alice');
-		expect(await getOfflineLists()).toHaveLength(1);
 		expect(await getOfflineRecipes()).toHaveLength(1);
 		expect(await getOfflineRecipeDetail(recipe.id)).toBeDefined();
 		expect(await getOfflineWaterLogsToday()).toHaveLength(1);
@@ -64,7 +43,7 @@ describe('private offline caches', () => {
 		expect(await getOfflineRecipes()).toHaveLength(1);
 	});
 
-	it('upgrades a version-7 IndexedDB without losing or misassigning old queued writes', async () => {
+	it('upgrades a version-7 IndexedDB, keeps tracker writes with their owner and drops shopping-list writes', async () => {
 		offlineDb.close(); await offlineDb.delete();
 		const legacy = new Dexie('groly');
 		legacy.version(7).stores({
@@ -73,9 +52,12 @@ describe('private offline caches', () => {
 			waterLogs: 'id, loggedAt', caffeineLogs: 'id, loggedAt', meditationLogs: 'id, loggedAt', caffeineDrinks: 'id, sortOrder',
 			categoryPreferences: '[userId+normalizedName], userId, updatedAt', userSettings: 'userId, updatedAt'
 		});
+		await legacy.table('pendingMutations').add({ type: 'create_item', payload: { id: 'milk', listId: 'family', name: 'Milk' }, createdAt: Date.now() });
 		await legacy.table('pendingMutations').add({ type: 'create_water_log', payload: { clientLogId: 'legacy-log', amountMl: 250, loggedAt: Date.now() }, createdAt: Date.now() });
 		await legacy.table('waterLogs').add({ id: 'legacy-log', amountMl: 250, loggedAt: Date.now() });
 		legacy.close(); await offlineDb.open();
+		expect((await offlineDb.pendingMutations.toArray()).map(mutation => mutation.type)).toEqual(['create_water_log']);
+		expect(offlineDb.tables.map(table => table.name)).not.toContain('lists');
 		await migrateAccountCache('alice');
 		const fetchMock = vi.fn().mockResolvedValue(Response.json({ ok: true })); vi.stubGlobal('fetch', fetchMock);
 		initSync('bob'); await drainPendingMutations();

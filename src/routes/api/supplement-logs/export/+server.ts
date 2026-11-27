@@ -5,6 +5,7 @@ import { supplementLogs, supplements, supplementNutrients } from '#lib/db/schema
 import { eq, and, gte, lte } from 'drizzle-orm';
 import { zipSync, strToU8 } from 'fflate';
 import { resolveTimeZone, zonedDateTimeToTimestamp } from '#lib/timeZones';
+import { csvCell } from '#lib/server/csv';
 
 const BOM = '﻿';
 
@@ -144,10 +145,3 @@ export const GET: RequestHandler = async (event) => {
 		}
 	});
 };
-
-function csvCell(value: string): string {
-	if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-		return `"${value.replace(/"/g, '""')}"`;
-	}
-	return value;
-}

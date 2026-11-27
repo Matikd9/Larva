@@ -13,7 +13,7 @@ vi.mock('#lib/db', async () => {
 });
 
 import { db, sqlite } from '#lib/db';
-import { users, lists, items, recipes, userInvites } from '#lib/db/schema';
+import { users, recipes, userInvites } from '#lib/db/schema';
 import { createHash } from 'node:crypto';
 import { createInvite, getOpenInviteFor, validateInvite, consumeInvite } from '#lib/auth/invites';
 import { changePassword } from '#lib/auth';
@@ -55,12 +55,10 @@ describe('admin user details', () => {
 		try { loadUser(context(admin, 'missing')); expect.unreachable(); }
 		catch (error) { expect(error).toMatchObject({ status: 404 }); }
 	});
-	it('keeps usage counts distinct across list, item, and recipe joins', () => {
+	it('counts each recipe once in the user overview', () => {
 		user('admin', 'admin', 1);
-		db.insert(lists).values(['one','two'].map(id => ({ id, name: id, ownerId: 'admin', createdAt: 1, updatedAt: 1 }))).run();
-		db.insert(items).values(['a','b','c'].map(id => ({ id, name: id, listId: 'one', createdAt: 1, updatedAt: 1 }))).run();
 		db.insert(recipes).values(['r1','r2'].map(id => ({ id, title: id, userId: 'admin', createdAt: 1, updatedAt: 1 }))).run();
-		expect(listAdminUsers()[0]).toMatchObject({ listCount: 2, itemCount: 3, recipeCount: 2, openInviteType: null });
+		expect(listAdminUsers()[0]).toMatchObject({ recipeCount: 2, openInviteType: null });
 	});
 });
 

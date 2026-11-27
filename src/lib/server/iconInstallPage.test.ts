@@ -28,7 +28,7 @@ describe('public icon installation', () => {
 		expect(await response.text()).toContain('Add Larva to your home screen');
 	});
 
-	it.each(['/install/dark/private', '/install/unknown', '/einstellungen', '/listen/private'])('does not exempt %s from authentication', async path => {
+	it.each(['/install/dark/private', '/install/unknown', '/einstellungen', '/tracker/private'])('does not exempt %s from authentication', async path => {
 		expect(isIconInstallPage(path)).toBe(false);
 		const resolve = vi.fn();
 		await expect(handle({ event: event(path) as never, resolve })).rejects.toMatchObject({ status: 302, location: '/login' });

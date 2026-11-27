@@ -5,7 +5,6 @@
 	import { t, currentLang } from '#lib/i18n.svelte';
 	import { scaleAmount, type Recipe } from '#lib/recipeUtils';
 	import RecipeShareModal from '#lib/components/recipe/RecipeShareModal.svelte';
-	import RecipeAddToListModal from '#lib/components/recipe/RecipeAddToListModal.svelte';
 	import RecipeNutritionSheet from '#lib/components/recipe/RecipeNutritionSheet.svelte';
 	import RecipeTrackSheet from '#lib/components/recipe/RecipeTrackSheet.svelte';
 	import AppBottomNav from '#lib/components/AppBottomNav.svelte';
@@ -23,17 +22,9 @@
 	let originalServings = $state(4);
 
 	let shareModalOpen = $state(false);
-	let listModalOpen = $state(false);
 	let isOfflineFallback = $state(false);
 	let offlineUnavailable = $state(false);
 
-	let excludedIngredients = $state(new Set<string>());
-	let exclusionsSaving = $state(false);
-	let exclusionsLoading = $state(true);
-	let exclusionsLoaded = $state(false);
-	let exclusionsLoadError = $state(false);
-	let exclusionsSaveError = $state(false);
-	let pendingExclusions: { recipeId: string; excludedIds: string[] } | null = null;
 	let cookSaving = $state(false);
 
 	// Nutrition-Tracking
@@ -64,7 +55,7 @@
 	});
 
 	async function loadNutrition() {
-		if (isOfflineFallback || !userSettings.nutritionTrackerEnabled) return;
+		if (isOfflineFallback) return;
 		try {
 			const res = await fetch(`/api/nutrition/recipe-components?recipeId=${recipeId}`);
 			if (!res.ok) return;
@@ -80,7 +71,7 @@
 	//  - Nährwerte hinterlegt → Portionen tracken (zählt beim Bestätigen auch „gekocht")
 	//  - noch nicht hinterlegt → Zuordnung öffnen („Nährwerte hinterlegen")
 	// Tracker aus → reines „gekocht" wie bisher.
-	const nutTrackerActive = $derived(!isOfflineFallback && userSettings.nutritionTrackerEnabled);
+	const nutTrackerActive = $derived(!isOfflineFallback);
 	function onCookButton() {
 		if (!nutTrackerActive) { void logCooked(); return; }
 		if (nutMapped && usableComponents.length > 0) trackSheetOpen = true;
@@ -218,64 +209,6 @@
 		} catch {}
 	}
 
-	async function loadExclusions() {
-		exclusionsLoading = true;
-		exclusionsLoadError = false;
-		try {
-			const res = await fetchWithTimeout(`/api/recipes/${recipeId}/exclusions`);
-			if (!res.ok) throw new Error('Selection unavailable');
-			const data = await res.json();
-			excludedIngredients = new Set(data.excludedIds);
-			exclusionsLoaded = true;
-		} catch {
-			exclusionsLoadError = true;
-		} finally {
-			exclusionsLoading = false;
-		}
-	}
-
-	async function saveExclusions(excluded: Set<string>) {
-		pendingExclusions = { recipeId, excludedIds: [...excluded] };
-		if (exclusionsSaving) return;
-		exclusionsSaving = true;
-		exclusionsSaveError = false;
-		try {
-			// The endpoint replaces the full selection. Serialize writes and
-			// coalesce changes made while a previous request is in flight.
-			while (pendingExclusions) {
-				const next = pendingExclusions;
-				pendingExclusions = null;
-				try {
-					const response = await fetchWithTimeout(`/api/recipes/${next.recipeId}/exclusions`, {
-						method: 'PUT',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ excludedIds: next.excludedIds })
-					});
-					if (!response.ok) throw new Error('Selection could not be saved');
-				} catch {
-					pendingExclusions ??= next;
-					throw new Error('Selection could not be saved');
-				}
-			}
-		} catch {
-			exclusionsSaveError = true;
-		} finally {
-			exclusionsSaving = false;
-		}
-	}
-
-	function toggleIngredient(id: string) {
-		const next = new Set(excludedIngredients);
-		if (next.has(id)) next.delete(id);
-		else next.add(id);
-		excludedIngredients = next;
-		saveExclusions(next);
-	}
-
-	const selectedCount = $derived(
-		recipe ? recipe.ingredients.filter(i => !excludedIngredients.has(i.id)).length : 0
-	);
-
 	const recipeId = $derived(page.params.id ?? '');
 
 	async function loadRecipe() {
@@ -291,10 +224,7 @@
 			currentServings = data.servings;
 			originalServings = data.servings;
 			cacheRecipeDetail(data, cacheUserId).catch(() => {});
-			await loadExclusions();
 		} catch {
-			exclusionsLoading = false;
-			exclusionsLoadError = true;
 			const cached = await getOfflineRecipeDetail(recipeId);
 			if (cached) {
 				recipe = cached as Recipe;
@@ -543,7 +473,7 @@
 					{/if}
 				</div>
 
-				<!-- Action row: stepper · favorite · edit · overflow · track · shopping list -->
+				<!-- Action row: stepper · favorite · edit · overflow · track -->
 				<div class="flex items-center gap-1 gap-y-2 mt-1 flex-wrap">
 					<!-- Servings stepper -->
 					<button
@@ -622,7 +552,7 @@
 						</button>
 					</div>
 
-					<!-- Right CTA group: track (outline) · shopping list (primary) -->
+					<!-- Right CTA group: track -->
 					<div class="ml-auto flex items-center gap-1.5">
 						<!-- Cook / track button (hidden while nutrition still needs mapping — shown as meta prompt instead) -->
 						{#if !nutTrackerActive || (nutMapped && usableComponents.length > 0)}
@@ -643,21 +573,6 @@
 								{#if isTrack}
 									<span class="text-xs font-semibold whitespace-nowrap">{t.recipe_track_button}</span>
 								{/if}
-							</button>
-						{/if}
-
-						<!-- Shopping list (primary) -->
-						{#if recipe.ingredients.length > 0}
-							<button
-								onclick={(event) => { event.currentTarget.focus({ preventScroll: true }); listModalOpen = true; }}
-								aria-label={t.a11y_add_to_list}
-								class="flex items-center gap-1.5 px-2.5 h-8 rounded-full text-xs font-semibold active:opacity-70 disabled:opacity-40 active:scale-95 transition-transform"
-								style="background-color: var(--color-primary); color: var(--color-on-primary)"
-							>
-								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
-								</svg>
-								<span>{selectedCount}/{recipe.ingredients.length}</span>
 							</button>
 						{/if}
 					</div>
@@ -776,20 +691,6 @@
 
 {#if recipe}
 	<RecipeShareModal recipeId={recipeId} open={shareModalOpen} onClose={() => shareModalOpen = false} />
-	{#if listModalOpen}
-		<RecipeAddToListModal
-			{recipe}
-			{excludedIngredients}
-			{currentServings}
-			{originalServings}
-			selectionSaving={exclusionsSaving || exclusionsLoading}
-			selectionUnavailable={!exclusionsLoaded}
-			selectionSaveError={exclusionsSaveError || exclusionsLoadError}
-			onToggleIngredient={toggleIngredient}
-			onRetrySelection={() => { if (exclusionsLoaded) void saveExclusions(excludedIngredients); else void loadExclusions(); }}
-			onClose={() => listModalOpen = false}
-		/>
-	{/if}
 {/if}
 
 <!-- Nutrition: Nährwerte zuordnen -->

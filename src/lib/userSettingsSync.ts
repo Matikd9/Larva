@@ -1,9 +1,7 @@
 import { normalizeShortcuts } from '#lib/shortcutActions';
-import type { ListCategorySettings, UserSettings } from '#lib/userSettingsTypes';
+import type { UserSettings } from '#lib/userSettingsTypes';
 
-export type UserSettingsPatch = Partial<Omit<UserSettings, 'listCategorySettings'>> & {
-	listCategorySettings?: Record<string, ListCategorySettings | null>;
-};
+export type UserSettingsPatch = Partial<UserSettings>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -22,7 +20,6 @@ export function sanitizeUserSettingsPatch(value: unknown): UserSettingsPatch | n
 	}
 	if (!isRecord(plainValue)) return null;
 	const patch = plainValue as UserSettingsPatch;
-	if (plainValue.listCategorySettings !== undefined && !isRecord(plainValue.listCategorySettings)) return null;
 	if (plainValue.shortcuts !== undefined) {
 		if (!Array.isArray(plainValue.shortcuts)) return null;
 		patch.shortcuts = normalizeShortcuts(plainValue.shortcuts);
@@ -35,31 +32,11 @@ export function hasExplicitUserLanguage(settings: UserSettings): boolean {
 }
 
 export function applyUserSettingsPatch(base: UserSettings, patch: UserSettingsPatch): UserSettings {
-	const { listCategorySettings, ...topLevel } = patch;
-	const next: UserSettings = { ...base, ...topLevel };
-	if (listCategorySettings !== undefined) {
-		const lists = new Map(Object.entries(base.listCategorySettings ?? {}));
-		for (const [listId, settings] of Object.entries(listCategorySettings)) {
-			if (settings === null) lists.delete(listId);
-			else lists.set(listId, settings);
-		}
-		next.listCategorySettings = Object.fromEntries(lists);
-	}
-	return next;
+	return { ...base, ...patch };
 }
 
-export function combineUserSettingsPatches(
-	previous: UserSettingsPatch,
-	next: UserSettingsPatch
-): UserSettingsPatch {
-	const combined: UserSettingsPatch = { ...previous, ...next };
-	if (previous.listCategorySettings !== undefined || next.listCategorySettings !== undefined) {
-		combined.listCategorySettings = {
-			...(previous.listCategorySettings ?? {}),
-			...(next.listCategorySettings ?? {})
-		};
-	}
-	return combined;
+export function combineUserSettingsPatches(previous: UserSettingsPatch, next: UserSettingsPatch): UserSettingsPatch {
+	return { ...previous, ...next };
 }
 
 function equalValue(a: unknown, b: unknown): boolean {
@@ -67,15 +44,5 @@ function equalValue(a: unknown, b: unknown): boolean {
 }
 
 export function userSettingsPatchMatches(settings: UserSettings, patch: UserSettingsPatch): boolean {
-	const { listCategorySettings, ...topLevel } = patch;
-	for (const [key, value] of Object.entries(topLevel)) {
-		if (!equalValue(settings[key as keyof UserSettings], value)) return false;
-	}
-	if (listCategorySettings !== undefined) {
-		for (const [listId, value] of Object.entries(listCategorySettings)) {
-			const current = settings.listCategorySettings?.[listId];
-			if (value === null ? current !== undefined : !equalValue(current, value)) return false;
-		}
-	}
-	return true;
+	return Object.entries(patch).every(([key, value]) => equalValue(settings[key as keyof UserSettings], value));
 }

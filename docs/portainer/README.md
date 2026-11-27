@@ -91,7 +91,7 @@ Open the configured HTTPS URL and sign in with the initial administrator
 credentials. You can change the password in Groly's settings. Groly credentials
 are independent of your Portainer account.
 
-Create a shopping list and a recipe with an uploaded image. Stop and start the
+Log a meal and create a recipe with an uploaded image. Stop and start the
 container through Portainer, then verify that both are still present. Check phone
 access and PWA installation before relying on the setup.
 

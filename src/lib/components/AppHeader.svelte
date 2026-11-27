@@ -4,7 +4,7 @@
 
 	import type { Snippet } from 'svelte';
 
-	let { title = 'Meine Listen', subtitle = '', eyebrow = '', onMenuOpen, onSearch = null, actions = null, hidden = false, onBack = null, embedded = false }: {
+	let { title = '', subtitle = '', eyebrow = '', onMenuOpen, onSearch = null, actions = null, hidden = false, onBack = null, embedded = false }: {
 		title?: string;
 		subtitle?: string;
 		eyebrow?: string;

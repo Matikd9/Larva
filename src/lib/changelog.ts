@@ -2,6 +2,21 @@
 // Diese Änderungen werden im Update-Popup angezeigt.
 export type ChangelogEntry = { version: string; intro?: { de: string; en: string }; de: string[]; en: string[] };
 export const CHANGELOG: ChangelogEntry[] = [
+	{
+		version: '1.1.0',
+		de: [
+			'Ernährung ist jetzt die Startseite: Mahlzeiten und darunter das Tagesprotokoll mit Supplements, Wasser, Koffein, Stimmung und Meditation. Die Datumspfeile gelten für den ganzen Bildschirm, auch zum Nachtragen früherer Tage.',
+			'Der Verlauf hat einen eigenen Tab und zeigt Woche, Monat und neu das Jahr mit Kalender. Durchschnitte nennen die Zahl erfasster Tage, Vergleiche mit dem Vorzeitraum erscheinen nur bei genug Daten, Wasser ist in Woche und Monat dabei, und ein Tipp auf einen Tag öffnet ihn auf der Startseite. Mikronährstoffe aus Lebensmitteln erscheinen als Mindestwerte mit Datenabdeckung. PDF-Export wie bisher.',
+			'Erinnerungen gehen nach einem Neustart oder einer kurzen Verzögerung nicht mehr verloren. Rezepte und eigene Mahlzeiten landen nach Uhrzeit in der passenden Mahlzeit statt unter Snacks. Produkte mit Energie nur in kJ werden gefunden, und importierte Rezepte erkennen Einheiten zuverlässiger. KI-Fehler erscheinen in deiner Sprache, und das Zielformular warnt, wenn die Makros nicht zu den Kalorien passen.',
+			'Die Einkaufslisten wurden entfernt und ihre Daten gelöscht (die automatische Sicherung vor dem Update enthält sie noch), ebenso die Übernahme von Rezepten, Wochenplan und Supplements in Listen. Schnellzugriffe loggen jetzt Mahlzeit, Supplement, Wasser, Koffein, Stimmung oder Meditation.'
+		],
+		en: [
+			'Nutrition is now the home screen: meals, followed by the daily log with supplements, water, caffeine, mood and meditation. The date arrows apply to the whole screen, including adding entries for earlier days.',
+			'History has its own tab and shows week, month and, new, the year with a calendar. Averages state how many days were logged, comparisons with the previous period appear only with enough data, water is included in week and month, and tapping a day opens it on the home screen. Micronutrients from food appear as minimum values with their data coverage. PDF export as before.',
+			'Reminders are no longer lost after a restart or a short delay. Recipes and custom meals are placed in the right meal by time instead of under snacks. Products listing energy only in kJ are found, and imported recipes recognise units more reliably. AI errors appear in your language, and the goals form warns when macros do not match the calories.',
+			'Shopping lists have been removed and their data deleted (the automatic pre-update backup still contains it), along with sending recipes, meal plans and supplements to a list. Shortcuts now log a meal, supplement, water, caffeine, mood or meditation.'
+		]
+	},
 {
 	"version": "1.0.0",
 	"intro": {

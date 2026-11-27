@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Self-hosted, offline-first application for grocery shopping lists, recipes, weekly meal planning, health and nutrition tracking.</strong>
+  <strong>Self-hosted, offline-first application for nutrition tracking, supplements and daily health habits, recipes and weekly meal planning.</strong>
 </p>
 
 <p align="center">
@@ -20,9 +20,9 @@
 
 ---
 
-Larva is a privacy-first, self-hosted web application designed from the ground up for mobile ergonomics. Navigation and high-frequency actions stay anchored at the bottom of the screen within comfortable thumb reach, allowing you to rapidly add, organize, and check off items while on the move.
+Larva is a privacy-first, self-hosted web application designed from the ground up for mobile ergonomics. Navigation and high-frequency actions stay anchored at the bottom of the screen within comfortable thumb reach, allowing you to log meals, supplements, water and more in a few taps.
 
-Shopping lists and habit trackers work **offline-first** through IndexedDB and sync automatically with the server when network connectivity is available. You can share lists with other family members or roommates to shop collaboratively, with state updates synchronized in real time via Server-Sent Events (SSE).
+The nutrition diary and habit trackers work **offline-first** through IndexedDB and sync automatically with the server when network connectivity is available.
 
 Install Larva on your phone or desktop as a **Progressive Web App (PWA)** for a seamless native-app feel, or run it through your preferred browser.
 
@@ -31,9 +31,8 @@ Install Larva on your phone or desktop as a **Progressive Web App (PWA)** for a 
 ## Table of Contents
 
 - [Features](#features)
-  - [Shopping Lists](#shopping-lists)
-  - [Daily Tracker & Habits](#daily-tracker--habits)
-  - [Nutrition Tracker & Food Diary](#nutrition-tracker--food-diary)
+  - [Nutrition Home & Food Diary](#nutrition-home--food-diary)
+  - [Daily Log & History](#daily-log--history)
   - [Recipes & Meal Planning](#recipes--meal-planning)
   - [Settings, Ergonomics & PWA](#settings-ergonomics--pwa)
 - [Architecture & Tech Stack](#architecture--tech-stack)
@@ -51,43 +50,39 @@ Install Larva on your phone or desktop as a **Progressive Web App (PWA)** for a 
 
 ## Features
 
-### Shopping Lists
+### Nutrition Home & Food Diary
 
 <table align="center">
   <thead>
     <tr>
-      <th align="center">Overview</th>
-      <th align="center">Shopping List</th>
-      <th align="center">Favourites</th>
+      <th align="center">Food Diary</th>
+      <th align="center">Log Meal</th>
+      <th align="center">Macro Goals</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td align="center"><img src="docs/screenshots/Shopping List overview.png" width="180" alt="Overview of all shared shopping lists" /></td>
-      <td align="center"><img src="docs/screenshots/Shopping List.png" width="180" alt="Shopping list with categorized items" /></td>
-      <td align="center"><img src="docs/screenshots/Shopping List Favorites.png" width="180" alt="Favourite items ready to add to a shopping list" /></td>
+      <td align="center"><img src="docs/screenshots/Nutrition Today.png" width="180" alt="Daily food diary with calories and macronutrients" /></td>
+      <td align="center"><img src="docs/screenshots/Nutrition Log Meal.png" width="180" alt="Meal logging view with food and amount selection" /></td>
+      <td align="center"><img src="docs/screenshots/Nutrition Goal.png" width="180" alt="Daily calorie and macronutrient goal settings" /></td>
     </tr>
   </tbody>
 </table>
 
-- **Shared Collaborative Lists:** Share any list with other household members. State changes sync in real time using Server-Sent Events (SSE).
-- **Offline-First & Concurrency-Safe:** Add, check off, edit, or delete items completely offline. The background mutation queue synchronizes automatically upon reconnecting, protected against multi-tab race conditions via the **Web Locks API**.
-- **Integrated Barcode Scanner:** Scan barcodes with your mobile camera to quickly identify and append items. Powered by the native [BarcodeDetector API](https://developer.mozilla.org/en-US/docs/Web/API/BarcodeDetector) on Chromium/Android with a high-performance [ZBar WebAssembly](https://github.com/undecaf/zbar-wasm) fallback on iOS and Firefox.
-- **Open Food Facts Integration:** Product metadata is looked up against [Open Food Facts](https://world.openfoodfacts.org/), [Open Products Facts](https://world.openproductsfacts.org/), and [Open Beauty Facts](https://world.openbeautyfacts.org/) without exposing client IPs or requiring third-party API keys. Lookups are cached persistently in SQLite.
-- **Smart Category Sorting:** Items are automatically categorized by keyword matching (e.g. *"milk"* → Dairy, *"apple"* → Produce). Category order can be reordered globally or individually per list to reflect your local supermarket layout.
-- **Quick Entry:** Add multiple items in a single input string separated by commas (e.g., `2x Oat Milk, 500g Pasta, Apples`). Quantities and units are parsed automatically.
-- **Usage Frequency Suggestions:** Item inputs suggest previously purchased items ranked by personal frequency. Suggestion history is maintained per user.
-- **Swipe to Peek:** Swipe horizontally on truncated product names to read the full description in an overlay without accidentally checking the item off.
-- **Favourites Panel:** Bookmark frequent staples with a single tap to rapidly replenish lists across grocery runs.
+- **Home Screen:** Nutrition is the start screen. Meals come first, followed by the daily log with supplements, water, caffeine, mood and meditation. The date arrows switch the whole screen to another day, so you can review or complete earlier days.
+- **Daily Food Diary:** Log meals across the day with real-time calorie calculation and macronutrient progress rings (Protein, Carbohydrates, Fats, Fiber).
+- **Dual Nutrition Database:** Search among 160+ built-in generic whole foods or query any branded item directly via the Open Food Facts barcode engine (includes Nutri-Score, Nova group, and nutritional values).
+- **Estimated Energy Calculation:** Set customized targets manually or let Larva compute recommended caloric targets using the Mifflin-St Jeor metabolic expenditure algorithm based on your physical parameters.
+- **Recipe Nutrition Mapping:** Map recipe ingredients to nutrition database entries once; Larva displays calculated calories per portion and enables logging prepared servings directly into your daily log.
 
 ---
 
-### Daily Tracker & Habits
+### Daily Log & History
 
 <table align="center">
   <thead>
     <tr>
-      <th align="center">Today Overview</th>
+      <th align="center">Daily Log</th>
       <th align="center">Quick Log</th>
       <th align="center">Weekly History</th>
     </tr>
@@ -118,38 +113,12 @@ Install Larva on your phone or desktop as a **Progressive Web App (PWA)** for a 
   </tbody>
 </table>
 
-- **Supplements & Nootropics:** One-tap quick intake logging. Define nutrient breakdowns per unit (e.g., 200 mg Magnesium per capsule); Larva calculates your aggregated daily micronutrient totals. Track inventory stock levels with direct reorder buttons that send items to your shopping list.
+- **Supplements & Nootropics:** One-tap quick intake logging. Define nutrient breakdowns per unit (e.g., 200 mg Magnesium per capsule); Larva calculates your aggregated daily micronutrient totals. Track inventory stock levels.
 - **Hydration Tracking:** Quick-log water intake with customizable presets, track progress towards your daily milliliter goal, and schedule interval reminders throughout the day.
 - **Caffeine Intake:** Built-in drink catalog (coffee, espresso, energy drinks, tea) with customizable default serving sizes and caffeine ratings. Visual threshold indicator alerts you when reaching your daily caffeine ceiling.
 - **Meditation Timer:** Full-screen timer with calming animations, configurable preparation countdowns, soothing start/end bell acoustics, and adherence metrics.
 - **Mood Journal:** Log daily mental well-being on a 1–5 scale accompanied by activity tags and gratitude reflections.
-- **Adherence Metrics & PDF Export:** Comprehensive day, week, and month history views with adherence heatmaps. Generate and export polished, printer-friendly PDF clinical reports for medical professionals or trainers.
-
----
-
-### Nutrition Tracker & Food Diary
-
-<table align="center">
-  <thead>
-    <tr>
-      <th align="center">Food Diary</th>
-      <th align="center">Log Meal</th>
-      <th align="center">Macro Goals</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><img src="docs/screenshots/Nutrition Today.png" width="180" alt="Daily food diary with calories and macronutrients" /></td>
-      <td align="center"><img src="docs/screenshots/Nutrition Log Meal.png" width="180" alt="Meal logging view with food and amount selection" /></td>
-      <td align="center"><img src="docs/screenshots/Nutrition Goal.png" width="180" alt="Daily calorie and macronutrient goal settings" /></td>
-    </tr>
-  </tbody>
-</table>
-
-- **Daily Food Diary:** Log meals across the day with real-time calorie calculation and macronutrient progress rings (Protein, Carbohydrates, Fats, Fiber).
-- **Dual Nutrition Database:** Search among 160+ built-in generic whole foods or query any branded item directly via the Open Food Facts barcode engine (includes Nutri-Score, Nova group, and nutritional values).
-- **Estimated Energy Calculation:** Set customized targets manually or let Larva compute recommended caloric targets using the Mifflin-St Jeor metabolic expenditure algorithm based on your physical parameters.
-- **Recipe Nutrition Mapping:** Map recipe ingredients to nutrition database entries once; Larva displays calculated calories per portion and enables logging prepared servings directly into your daily log.
+- **History, Adherence Metrics & PDF Export:** A dedicated History tab with week, month and year views: averages with the number of logged days, comparisons with the previous period, a year calendar of logging consistency per category, approximate supplement adherence and food micronutrients with their data coverage. Tapping a day opens it on the home screen. Generate and export polished, printer-friendly PDF clinical reports for medical professionals or trainers.
 
 ---
 
@@ -174,7 +143,7 @@ Install Larva on your phone or desktop as a **Progressive Web App (PWA)** for a 
 
 - **Recipe Library & Web Scraper:** Store, tag, rate, and organize personal recipes. Import full recipes, ingredients, and instructions directly from popular cooking sites via URL.
 - **Dynamic Serving Scaler:** Dynamically scale ingredient quantities by adjusting portion count.
-- **Weekly Meal Planner:** Schedule meals for every day of the week. Send ingredients from a single meal or the whole week's schedule directly into any shopping list with a single tap.
+- **Weekly Meal Planner:** Schedule meals for every day of the week and adjust servings per meal.
 
 ---
 
@@ -195,9 +164,8 @@ Install Larva on your phone or desktop as a **Progressive Web App (PWA)** for a 
   </tbody>
 </table>
 
-- **Modular Feature Toggles:** Disable unused modules (Supplements, Habits, Recipes, or Nutrition) in *Settings → Display*. Unchecked modules are hidden from navigation and menus.
-- **Quick-Access Action Wheel:** Long-press the floating action button (`+`) to activate up to 4 configurable radial shortcuts (e.g., open specific lists, launch scanner).
-- **Location-Aware Automatic List Opening:** Bind geographical coordinates to lists (such as your local supermarket). When entering within a 100-meter radius, Larva can automatically navigate to that list.
+- **Modular Feature Toggles:** Hide trackers you do not use (water, caffeine, mood, meditation) in the tracker settings and the Recipes tab in *Settings*.
+- **Quick-Access Action Wheel:** Long-press the floating action button (`+`) to activate up to 4 configurable radial shortcuts: log a meal, supplement, water, caffeine, mood or meditation.
 - **Dark & Light Mode:** Seamlessly harmonizes with operating system visual preferences.
 - **Internationalization (i18n):** Native support for English and German via `@inlang/paraglide-js`.
 
@@ -213,10 +181,10 @@ Larva is engineered for reliability, deterministic offline operation, and sub-mi
 │  SvelteKit 3.1 (Svelte 5 Runes) + Tailwind CSS v4           │
 │  IndexedDB (Dexie.js) + Multi-Tab Web Locks Synchronization │
 └──────────────────────────────▲──────────────────────────────┘
-                               │ HTTPS (REST / SSE / WebPush)
+                               │ HTTPS (REST / WebPush)       
 ┌──────────────────────────────▼──────────────────────────────┐
 │                    Server (Node.js 24)                      │
-│  SvelteKit Node Adapter + Server-Sent Events Engine         │
+│  SvelteKit Node Adapter                                     │
 │  Custom Scrypt Authentication + Session Store               │
 └──────────────────────────────▲──────────────────────────────┘
                                │ better-sqlite3 + WAL Mode
@@ -237,8 +205,7 @@ Larva is engineered for reliability, deterministic offline operation, and sub-mi
 | **Server Engine** | Node.js `>=24` (Alpine base) | High-performance ESM backend. |
 | **Database** | SQLite via `better-sqlite3` | Zero-latency embedded transactional storage. |
 | **ORM & Migrations** | Drizzle ORM (`drizzle-orm`) | Type-safe queries and schema definition. |
-| **Real-time Sync** | Server-Sent Events (SSE) | Push-based multi-user list synchronization. |
-| **Push Notifications** | Web Push API (`web-push`) | Background reminders and sharing updates. |
+| **Push Notifications** | Web Push API (`web-push`) | Background reminders. |
 | **Localization** | Paraglide JS | Compile-time internationalization. |
 
 ---
@@ -356,6 +323,9 @@ docker compose up -d
 | `PUBLIC_VAPID_PUBLIC_KEY` | *Empty* | Must match `VAPID_PUBLIC_KEY` for client consumption. |
 | `VAPID_PRIVATE_KEY` | *Empty* | Private VAPID key for backend notification signing. |
 | `VAPID_SUBJECT` | *Empty* | Contact URI (`mailto:` or `https://`) required by Apple/Google push servers. |
+| `OFF_COUNTRY` | *Empty* | Restricts Open Food Facts text search to one country (e.g. `chile`). |
+| `OFF_PREFERRED_BARCODE_PREFIX` | `780` | Barcode prefix (GS1 country) ranked higher in food search; empty disables it. |
+| `OFF_PREFERRED_COUNTRY` | `chile` | Open Food Facts country ranked higher in food search; empty disables it. |
 
 ---
 
@@ -370,7 +340,6 @@ docker compose up -d
 | **Push Notifications** | The Web Push API requires secure contexts. |
 | **Barcode Scanner** | Camera access (`getUserMedia`) is restricted to HTTPS. |
 | **Session Cookies** | Session cookies set the `Secure` flag in production. |
-| **Location Tracking** | Geolocation APIs are disabled over plain HTTP. |
 
 #### Obtaining HTTPS
 
@@ -382,7 +351,7 @@ docker compose up -d
 
 ### Push Notifications (Web Push)
 
-To enable push notifications for list updates and supplement reminders:
+To enable push notifications for tracker reminders:
 
 1. Generate a valid VAPID keypair:
    ```bash
@@ -417,11 +386,10 @@ Larva operates under a **private invitation model**:
 
 Larva executes an automated daily housekeeping routine at midnight to keep SQLite storage compact:
 
-- **Checked Items:** Automatically removed after **60 days**.
-- **Item Suggestions:** Suggestion index purged after **6 months** of inactivity.
 - **Barcode Cache:** Product lookup cache pruned after **6 months** without access.
 - **Session Tokens:** Expired authentication sessions purged daily.
 - **Stale Push Subscriptions:** Dead endpoints returning HTTP 404/410 are automatically deregistered.
+- **Unused Images:** Uploaded images that no recipe, meal or favourite references any more are deleted once they are older than a day.
 
 ---
 

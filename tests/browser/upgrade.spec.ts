@@ -52,33 +52,32 @@ test('the published latest PWA upgrades directly with its session and unsynced c
 		await page.locator('input[autocomplete="current-password"]').fill('Groly-upgrade-test-2026!');
 		await page.locator('button[type="submit"]').click();
 		await expect(page).toHaveURL('http://127.0.0.1:3100/');
+		// The published version still opens on its shopping-list home.
 		await expect(page.getByText('Familie 🥦', { exact: true }).first()).toBeVisible();
 		await settled();
-		await page.goto('/listen/upgrade-list');
-		await expect(page.getByText('Hafermilch', { exact: true }).first()).toBeVisible();
 		await page.evaluate(async () => { await navigator.serviceWorker.ready; });
 		await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
 		await settled();
 		// Reopen the installed app: the old version distinguishes first installation
 		// from updates using the controller present when its layout mounts.
 		await page.reload();
-		await expect(page.getByText('Hafermilch', { exact: true }).first()).toBeVisible();
 		await settled();
-		await page.getByRole('button', { name: de.add, exact: true }).click();
-		const input = page.locator('[data-add-item-name]');
-		await expect(input).toBeVisible();
+		// Queue offline writes exactly as the old app stores them: a tracker log, which must
+		// sync after the upgrade, and a shopping-list item, which the upgrade must discard.
 		await context.setOffline(true);
-		await input.fill('Upgrade offline item');
-		await input.press('Enter');
-		await expect.poll(() => page.evaluate(() => new Promise<boolean>((resolve, reject) => {
+		await page.evaluate(() => new Promise<void>((resolve, reject) => {
 			const open = indexedDB.open('groly');
 			open.onerror = () => reject(open.error);
 			open.onsuccess = () => {
 				const db = open.result;
-				const rows = db.transaction('pendingMutations').objectStore('pendingMutations').getAll();
-				rows.onsuccess = () => { resolve(rows.result.some(row => row.type === 'create_item' && row.payload.name === 'Upgrade offline item')); db.close(); };
+				const tx = db.transaction('pendingMutations', 'readwrite');
+				const queue = tx.objectStore('pendingMutations');
+				queue.add({ type: 'create_water_log', userId: 'upgrade-owner', payload: { amountMl: 330, loggedAt: Date.now(), clientLogId: 'upgrade-offline-water' }, createdAt: Date.now() });
+				queue.add({ type: 'create_item', userId: 'upgrade-owner', payload: { id: 'upgrade-offline-item', listId: 'upgrade-list', name: 'Upgrade offline item', quantityInfo: '', categoryOverride: null }, createdAt: Date.now() });
+				tx.oncomplete = () => { db.close(); resolve(); };
+				tx.onerror = () => reject(tx.error);
 			};
-		}))).toBe(true);
+		}));
 
 		docker('rm', '-f', container); container = '';
 		start(image!, 'new');
@@ -92,13 +91,26 @@ test('the published latest PWA upgrades directly with its session and unsynced c
 		await dismiss.click();
 		await settled();
 		await expect.poll(async () => {
-			const response = await page.request.get('/api/lists/upgrade-list/items');
+			const response = await page.request.get(`/api/water-logs?from=0&to=${Date.now() + 86_400_000}`);
 			if (!response.ok()) return -1;
-			const body = await response.json();
-			const items = Array.isArray(body) ? body : body.items;
-			return items.filter((item: { name: string }) => item.name === 'Upgrade offline item').length;
+			const { logs } = await response.json();
+			return logs.filter((log: { clientLogId: string | null }) => log.clientLogId === 'upgrade-offline-water').length;
 		}, { timeout: 60_000 }).toBe(1);
+		const queued = await page.evaluate(() => new Promise<string[]>((resolve, reject) => {
+			const open = indexedDB.open('groly');
+			open.onerror = () => reject(open.error);
+			open.onsuccess = () => {
+				const db = open.result;
+				const rows = db.transaction('pendingMutations').objectStore('pendingMutations').getAll();
+				rows.onsuccess = () => { resolve(rows.result.map(row => row.type)); db.close(); };
+			};
+		}));
+		expect(queued).not.toContain('create_item');
 		expect((await page.request.get('/api/auth/me')).status()).toBe(200);
+		// Nutrition is the new home screen.
+		await page.goto('/');
+		await expect(page.getByText(de.nutrition_label, { exact: true }).first()).toBeVisible();
+		await settled();
 
 		for (const route of ['/tracker', '/tracker?tab=history', '/tracker/verwalten', '/tracker/nutrition', '/rezepte', '/einstellungen']) {
 			const response = await page.goto(route);
@@ -165,7 +177,7 @@ test('the published latest PWA upgrades directly with its session and unsynced c
 		await page.goto('/rezepte?tab=mealplan');
 		await expect(page.getByText('So', { exact: true })).toBeVisible();
 		const sunday = page.getByText('So', { exact: true }).locator('..').locator('..');
-		await sunday.getByText(de.meal_plan_empty_day, { exact: true }).click();
+		await sunday.getByRole('button', { name: 'Mahlzeit hinzufügen', exact: true }).click();
 		await page.getByRole('button', { name: /Gemüsepfanne 🥦/ }).click();
 		const saved = page.waitForResponse(response => response.url().endsWith('/api/meal-plan') && response.request().method() === 'PUT');
 		await page.getByRole('button', { name: de.meal_plan_add_button, exact: true }).click();

@@ -225,16 +225,31 @@ function cleanText(value: string): string {
 		.trim();
 }
 
+// Words accepted as a unit after the amount (German, English, Spanish); anything else stays part of the name,
+// so "2 große Eier" keeps "große Eier" as the ingredient.
+const KNOWN_UNITS = new Set([
+	'g', 'gr', 'kg', 'mg', 'µg', 'μg', 'ml', 'cl', 'dl', 'l', 'liter', 'litre', 'litro', 'litros', 'gramm', 'gramo', 'gramos', 'kilo', 'kilos',
+	'tl', 'el', 'msp', 'prise', 'prisen', 'pck', 'pkt', 'päckchen', 'packung', 'packungen', 'bund', 'dose', 'dosen', 'becher', 'glas', 'gläser',
+	'scheibe', 'scheiben', 'stück', 'stk', 'zehe', 'zehen', 'tasse', 'tassen', 'handvoll', 'würfel', 'blatt', 'blätter', 'zweig', 'zweige', 'stange', 'stangen', 'tropfen', 'schuss',
+	'tsp', 'tbsp', 'teaspoon', 'teaspoons', 'tablespoon', 'tablespoons', 'cup', 'cups', 'oz', 'lb', 'lbs', 'pinch', 'dash', 'clove', 'cloves',
+	'can', 'cans', 'slice', 'slices', 'piece', 'pieces', 'handful', 'bunch', 'sprig', 'sprigs', 'stick', 'sticks', 'package', 'packages', 'pkg',
+	'cucharada', 'cucharadas', 'cucharadita', 'cucharaditas', 'cda', 'cdas', 'cdta', 'cdtas', 'taza', 'tazas', 'pizca', 'pizcas', 'diente', 'dientes',
+	'lata', 'latas', 'rebanada', 'rebanadas', 'unidad', 'unidades', 'puñado', 'manojo', 'ramita', 'ramitas', 'sobre', 'sobres', 'chorrito'
+]);
+
 export function parseIngredient(raw: string): ImportedIngredient {
 	const text = normalizeText(raw) ?? '';
 	const vulgarFraction = String.raw`[¼½¾⅓⅔⅛⅜⅝⅞]`;
 	const number = String.raw`(?:\d+(?:[.,]\d+)?(?:\s+\d+\s*\/\s*\d+|\s*${vulgarFraction})?|\d+\s*\/\s*\d+|${vulgarFraction})`;
 	const match = text.match(new RegExp(`^(${number}(?:\\s*[–-]\\s*${number})?)\\s*([\\p{L}µμ]+\\.?)?\\s+(.+)$`, 'u'));
 	if (!match) return { amount: null, unit: null, name: cleanText(text) || text };
+	const unit = cleanText(match[2]?.replace(/\.$/, '') ?? '');
+	const isUnit = !!unit && KNOWN_UNITS.has(unit.toLowerCase());
+	const name = isUnit || !match[2] ? match[3] : `${match[2]} ${match[3]}`;
 	return {
 		amount: match[1]?.trim() || null,
-		unit: cleanText(match[2]?.replace(/\.$/, '') ?? '') || null,
-		name: cleanText(match[3] ?? text) || text
+		unit: isUnit ? unit : null,
+		name: cleanText(name ?? text) || text
 	};
 }
 

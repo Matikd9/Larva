@@ -84,7 +84,7 @@
 	<main class="user-content flex-1 overflow-y-auto px-4">
 		<section class="user-surface" aria-label={t.admin_user_details}>
 			<div class="user-heading"><span class="user-avatar" aria-hidden="true">{member.username[0].toUpperCase()}</span><div><h1>{member.username}</h1><p>{status}</p></div></div>
-			<dl class="user-stats"><div><dt>{t.nav_lists}</dt><dd>{member.listCount}</dd></div><div><dt>{t.admin_user_items}</dt><dd>{member.itemCount}</dd></div><div><dt>{t.nav_recipes}</dt><dd>{member.recipeCount}</dd></div></dl>
+			<dl class="user-stats"><div><dt>{t.nav_recipes}</dt><dd>{member.recipeCount}</dd></div></dl>
 			<dl class="user-dates"><div><dt>{t.admin_user_created}</dt><dd>{formatDate(member.createdAt)}</dd></div><div><dt>{t.admin_user_last_login}</dt><dd>{formatDate(member.lastLoginAt)}</dd></div></dl>
 			{#if actionError}<p class="user-feedback error" role="alert">{actionError}</p>{/if}
 			{#if success}<p class="user-feedback" role="status">{success}</p>{/if}

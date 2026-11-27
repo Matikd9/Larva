@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { adminGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
-import { users, items } from '#lib/db/schema';
+import { users } from '#lib/db/schema';
 import { eq, asc, count } from 'drizzle-orm';
 import { now } from '#lib/auth';
 
@@ -62,7 +62,6 @@ export const DELETE: RequestHandler = async (event) => {
 			}
 		}
 
-		db.update(items).set({ createdBy: null }).where(eq(items.createdBy, targetId)).run();
 		db.delete(users).where(eq(users.id, targetId)).run();
 	});
 	if (txError) return txError;

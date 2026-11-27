@@ -5,13 +5,13 @@ import { randomUUID } from 'crypto';
 import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
-
-const DB_PATH = process.env.DATABASE_URL ?? './data/groly.db';
-const UPLOADS_DIR = path.resolve(path.dirname(DB_PATH), 'uploads');
+import { UPLOADS_DIR, detectImageExtension } from '#lib/server/uploads';
+import { checkRateLimit } from '#lib/server/loginRateLimit';
 
 export const POST: RequestHandler = async (event) => {
-	const { error } = authGuard(event);
+	const { error, user } = authGuard(event);
 	if (error) return error;
+	if (!checkRateLimit(`upload:${user!.id}`, 60)) return Response.json({ error: 'Too many uploads', code: 'rate_limited' }, { status: 429 });
 
 	try {
 		if (!existsSync(UPLOADS_DIR)) {
@@ -28,14 +28,11 @@ export const POST: RequestHandler = async (event) => {
 			return Response.json({ error: 'Image too large (max 5 MB)', code: 'image_too_large' }, { status: 400 });
 		}
 
-		// Derive extension from MIME type, default to jpg
-		const mimeToExt: Record<string, string> = { 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' };
-		const ext = mimeToExt[file.type] ?? 'jpg';
-		const filename = `${randomUUID()}.${ext}`;
-		const filepath = path.join(UPLOADS_DIR, filename);
-
 		const buffer = Buffer.from(await file.arrayBuffer());
-		await writeFile(filepath, buffer);
+		const ext = detectImageExtension(buffer);
+		if (!ext) return Response.json({ error: 'Not a supported image', code: 'unsupported_image' }, { status: 400 });
+		const filename = `${randomUUID()}.${ext}`;
+		await writeFile(path.join(UPLOADS_DIR, filename), buffer);
 
 		return Response.json({ url: `/uploads/${filename}` }, { status: 201 });
 	} catch (e) {

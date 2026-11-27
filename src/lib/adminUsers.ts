@@ -4,8 +4,6 @@ export type AdminUserEntry = {
 	role: string;
 	createdAt: number;
 	lastLoginAt: number | null;
-	listCount: number;
-	itemCount: number;
 	recipeCount: number;
 	openInviteType: 'invite' | 'reset' | null;
 	openInviteExpiresAt: number | null;

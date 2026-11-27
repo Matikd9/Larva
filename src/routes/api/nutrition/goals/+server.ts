@@ -31,6 +31,11 @@ export const PUT: RequestHandler = async (event) => {
 			customMicros?: EssentialMicros | null;
 		};
 
+		const outOfRange = (value: unknown, max: number) => value != null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > max);
+		if (outOfRange(dailyKcal, 10_000) || [dailyProtein, dailyFat, dailyCarbs, dailyFiber].some(v => outOfRange(v, 1_000))) {
+			return Response.json({ error: 'Goal out of range', code: 'invalid_goal' }, { status: 400 });
+		}
+
 		const values = {
 			userId: user.id,
 			dailyKcal: typeof dailyKcal === 'number' && dailyKcal > 0 ? Math.round(dailyKcal) : null,

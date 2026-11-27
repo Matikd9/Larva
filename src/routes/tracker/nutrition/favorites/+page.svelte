@@ -254,7 +254,7 @@
 	</svg>
 {/snippet}
 
-<AppHeader title={t.nutrition_favorites_label} eyebrow={t.nutrition_label_short} onMenuOpen={() => (menuOpen = true)} onBack={() => goto('/tracker/nutrition')} />
+<AppHeader title={t.nutrition_favorites_label} eyebrow={t.nutrition_label_short} onMenuOpen={() => (menuOpen = true)} onBack={() => goto('/')} />
 <HamburgerMenu bind:open={menuOpen} user={data?.user ?? null} />
 
 <main class="px-4 pb-32" style="padding-top: 5.25rem">
@@ -359,7 +359,7 @@
 	{/if}
 </main>
 
-<AppBottomNav activeTab="tracker" trackerBack showFab={false} />
+<AppBottomNav activeTab="home" showFab={false} />
 
 {#if newIngredientOpen}
 	<AddComponentSheet

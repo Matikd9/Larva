@@ -1,9 +1,8 @@
 import { db } from '#lib/db';
 import { users, sessions, userInvites, pushSubscriptions } from '#lib/db/schema';
-import { and, eq, ne } from 'drizzle-orm';
-import { closeSessionStreams, closeUserStreams } from '#lib/server/sessionStreams';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { seedUserDefaultSupplements } from '#lib/server/supplementSeed';
-import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 
 export function generateId(len = 24): string {
 	return randomBytes(len).toString('base64url').slice(0, len);
@@ -18,6 +17,21 @@ export function hashPassword(password: string): string {
 	const hash = scryptSync(password, salt, 64).toString('hex');
 	return `${salt}:${hash}`;
 }
+
+/** Sessions are stored by hash, so a leaked database (or backup) holds no usable cookie values. */
+export function sessionKey(sessionId: string): string {
+	return createHash('sha256').update(sessionId).digest('hex');
+}
+
+/** One-time upgrade of sessions stored before hashing; keeps everyone signed in. Idempotent. */
+export function hashLegacySessions() {
+	const legacy = db.select({ id: sessions.id }).from(sessions).where(sql`length(${sessions.id}) <> 64`).all();
+	db.transaction(() => {
+		for (const { id } of legacy) db.update(sessions).set({ id: sessionKey(id) }).where(eq(sessions.id, id)).run();
+	});
+}
+
+let dummyHash: string | undefined;
 
 export function verifyPassword(password: string, stored: string): boolean {
 	const [salt, hash] = stored.split(':');
@@ -38,7 +52,7 @@ export async function createUser(
 		.values({
 			id,
 			username,
-			passwordHash: hashPassword(password),
+			passwordHash: hashPassword(password.trim()), // same normalisation as login and changePassword
 			role,
 			mustChangePassword,
 			createdAt: ts,
@@ -58,7 +72,11 @@ export async function login(
 	password: string
 ): Promise<{ sessionId: string } | null> {
 	const user = db.select().from(users).where(eq(users.username, username.trim())).get();
-	if (!user) return null;
+	if (!user) {
+		// Spend the same scrypt time as a real check, so response time does not reveal which usernames exist.
+		verifyPassword(password.trim(), dummyHash ??= hashPassword(generateId()));
+		return null;
+	}
 	if (!verifyPassword(password.trim(), user.passwordHash)) return null;
 
 	const sessionId = generateId(32);
@@ -66,7 +84,7 @@ export async function login(
 	const expiresAt = ts + 60 * 60 * 24 * 30; // 30 Tage
 
 	db.insert(sessions)
-		.values({ id: sessionId, userId: user.id, expiresAt, createdAt: ts })
+		.values({ id: sessionKey(sessionId), userId: user.id, expiresAt, createdAt: ts })
 		.run();
 
 	db.update(users).set({ lastLoginAt: ts }).where(eq(users.id, user.id)).run();
@@ -75,10 +93,11 @@ export async function login(
 }
 
 export function getSession(sessionId: string) {
-	const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+	const key = sessionKey(sessionId);
+	const session = db.select().from(sessions).where(eq(sessions.id, key)).get();
 	if (!session) return null;
 	if (session.expiresAt < now()) {
-		db.delete(sessions).where(eq(sessions.id, sessionId)).run();
+		db.delete(sessions).where(eq(sessions.id, key)).run();
 		return null;
 	}
 	const user = db.select().from(users).where(eq(users.id, session.userId)).get();
@@ -86,8 +105,7 @@ export function getSession(sessionId: string) {
 }
 
 export function logout(sessionId: string) {
-	db.delete(sessions).where(eq(sessions.id, sessionId)).run();
-	closeSessionStreams(sessionId);
+	db.delete(sessions).where(eq(sessions.id, sessionKey(sessionId))).run();
 }
 
 export function changePassword(userId: string, newPassword: string, keepSessionId?: string, keepPushDeviceId?: string) {
@@ -97,11 +115,10 @@ export function changePassword(userId: string, newPassword: string, keepSessionI
 			.set({ passwordHash, mustChangePassword: false, updatedAt: now() })
 			.where(eq(users.id, userId))
 			.run();
-		db.delete(sessions).where(and(eq(sessions.userId, userId), keepSessionId ? ne(sessions.id, keepSessionId) : undefined)).run();
+		db.delete(sessions).where(and(eq(sessions.userId, userId), keepSessionId ? ne(sessions.id, sessionKey(keepSessionId)) : undefined)).run();
 		db.delete(pushSubscriptions).where(and(eq(pushSubscriptions.userId, userId), keepPushDeviceId ? ne(pushSubscriptions.id, keepPushDeviceId) : undefined)).run();
 		db.update(userInvites).set({ usedAt: now(), tokenValue: null }).where(eq(userInvites.userId, userId)).run();
 	});
-	closeUserStreams(userId, keepSessionId);
 }
 
 export function bootstrapAdmin() {

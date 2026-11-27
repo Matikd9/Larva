@@ -16,14 +16,12 @@ vi.mock('#lib/server/pushNotifications', () => ({ sendPushToUser: vi.fn(), getUs
 vi.mock('#lib/server/startup', () => ({ init: async () => {}, startupStatus: () => 'ready' }));
 
 import { sqlite, db } from '#lib/db';
-import { recipes, recipeIngredients, mealPlanEntries } from '#lib/db/schema';
-import { bootstrapAdmin, changePassword, createUser, getSession, login } from '#lib/auth';
+import { recipes, recipeIngredients, mealPlanEntries, sessions } from '#lib/db/schema';
+import { bootstrapAdmin, changePassword, createUser, getSession, hashLegacySessions, login, sessionKey } from '#lib/auth';
 import { consumeInvite, createInvite, validateInvite } from '#lib/auth/invites';
 import { validatePasswordRule } from '#lib/password';
-import { emit } from '#lib/server/userEvents';
 import * as loginRoute from '../../routes/api/auth/login/+server';
 import * as logoutRoute from '../../routes/api/auth/logout/+server';
-import * as sseRoute from '../../routes/api/events/+server';
 import * as planner from '../../routes/api/meal-plan/+server';
 import * as planEntry from '../../routes/api/meal-plan/[id]/+server';
 import * as shareRoute from '../../routes/api/recipes/[id]/share/+server';
@@ -74,6 +72,24 @@ describe('account security', () => {
 		expect(validatePasswordRule(' Password123 ')).toBeNull();
 		await createUser('alice', 'Password123');
 		expect(await login(' alice ', ' Password123 ')).not.toBeNull();
+		await createUser('carol', ' Spaced-Password1 '); // created and checked with the same trimming
+		expect(await login('carol', 'Spaced-Password1')).not.toBeNull();
+		expect(await login('nobody', 'Password123')).toBeNull();
+	});
+
+	it('stores sessions only as hashes and upgrades sessions created before hashing', async () => {
+		const alice = await createUser('alice', 'Password123');
+		const cookie = (await login('alice', 'Password123'))!.sessionId;
+		const stored = db.select().from(sessions).all().map(row => row.id);
+		expect(stored).toEqual([sessionKey(cookie)]);
+		expect(getSession(cookie)?.id).toBe(alice);
+		const legacyCookie = 'legacy-session-cookie-value-1234';
+		db.insert(sessions).values({ id: legacyCookie, userId: alice, expiresAt: Math.floor(Date.now() / 1000) + 3600, createdAt: 0 }).run();
+		expect(getSession(legacyCookie)).toBeNull(); // raw values are never accepted as keys
+		hashLegacySessions();
+		hashLegacySessions(); // idempotent
+		expect(getSession(legacyCookie)?.id).toBe(alice);
+		expect(db.select().from(sessions).all().some(row => row.id === legacyCookie)).toBe(false);
 	});
 
 	it('keeps only the changing device session and consumes outstanding reset links', async () => {
@@ -95,23 +111,6 @@ describe('account security', () => {
 		expect(sqlite.prepare('SELECT id FROM push_subscriptions WHERE user_id = ?').all(user)).toEqual([]);
 		if ('sessionId' in result) expect(getSession(result.sessionId)?.id).toBe(user);
 		expect(consumeInvite(nextReset, 'AgainPassword123')).toEqual({ error: 'used' });
-	});
-
-	it('closes an already open SSE stream on logout', async () => {
-		const user = await createUser('alice', 'Password123');
-		const session = (await login('alice', 'Password123'))!.sessionId;
-		const response = await sseRoute.GET(event(session, '/api/events'));
-		const reader = response.body!.getReader();
-		expect(new TextDecoder().decode((await reader.read()).value)).toContain('connected');
-		await logoutRoute.POST(event(session, '/api/auth/logout', {}));
-		emit(user, { type: 'private-event' });
-		expect((await reader.read()).done).toBe(true);
-	});
-
-	it('blocks stale-account SSE connections', async () => {
-		await createUser('alice', 'Password123');
-		const session = (await login('alice', 'Password123'))!.sessionId;
-		expect((await sseRoute.GET(event(session, '/api/events?userId=someone-else'))).status).toBe(401);
 	});
 
 	it('requires an explicit first-install password without changing existing installations', async () => {
@@ -139,7 +138,7 @@ describe('account security', () => {
 });
 
 describe('recipe sharing and meal-plan ownership', () => {
-	it('blocks a foreign original but allows its accepted copy through planning and shopping', async () => {
+	it('blocks a foreign original but allows its accepted copy in the meal plan', async () => {
 		const alice = await createUser('alice', 'Password123');
 		const bob = await createUser('bob', 'Password123');
 		const a = (await login('alice', 'Password123'))!.sessionId;
@@ -156,14 +155,9 @@ describe('recipe sharing and meal-plan ownership', () => {
 		expect((await planner.PUT(event(b, '/api/meal-plan', { date: '2026-10-17', recipeId, servings: 2 }))).status).toBe(200);
 		const entry = sqlite.prepare('SELECT id FROM meal_plan_entries WHERE user_id = ?').get(bob) as { id: string };
 		expect((await planEntry.PATCH(event(b, '/api/meal-plan/' + entry.id, { recipeId: 'private-recipe' }, { id: entry.id }))).status).toBe(404);
-		sqlite.prepare('INSERT INTO lists (id, owner_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run('bob-list', bob, 'Shopping', 1, 1);
-		expect((await planner.POST(event(b, '/api/meal-plan', { dates: ['2026-10-17'], listId: 'bob-list' }))).status).toBe(200);
-		expect(sqlite.prepare('SELECT name, quantity_info FROM items WHERE list_id = ?').all('bob-list')).toEqual([{ name: 'Carrots', quantity_info: '100 g' }]);
 		// Old invalid references are harmless even if they existed before this fix.
 		db.insert(mealPlanEntries).values({ id: 'legacy-invalid', userId: bob, date: '2026-10-18', recipeId: 'private-recipe', servings: 2, createdAt: 1, updatedAt: 1 }).run();
 		const entries = await (await planner.GET(event(b, '/api/meal-plan?from=2026-10-18&to=2026-10-18'))).json();
 		expect(entries[0].recipeTitle).toBeNull();
-		await planner.POST(event(b, '/api/meal-plan', { dates: ['2026-10-18'], listId: 'bob-list' }));
-		expect(sqlite.prepare('SELECT COUNT(*) AS count FROM items WHERE list_id = ?').get('bob-list')).toEqual({ count: 1 });
 	});
 });

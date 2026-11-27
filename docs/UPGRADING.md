@@ -34,9 +34,17 @@ The image and example Compose file allow ten minutes before health-check failure
 3. Select one completed backup. Check its manifest, every file size/checksum, and the SQLite `PRAGMA integrity_check`. Do not use a `.partial-*` folder. The automated upgrade test exercises restoration from these exact backup files.
 4. Move the current database and its `-wal`/`-shm` companions into your separate safety copy. Copy the selected snapshot database to the path in `DATABASE_URL`. Do not leave stale WAL/SHM files beside the restored database.
 5. Move the current `uploads` directory into the safety copy, then copy `uploads` from **the same snapshot** into place. If that snapshot contains no uploads, create an empty uploads directory. Do not merge different snapshot generations.
-6. Start the matching previous image with the original volume and environment. Check login, lists, recipes, trackers and uploaded images. Retain the newer data copy and all backups until the recovery is verified.
+6. Start the matching previous image with the original volume and environment. Check login, recipes, trackers and uploaded images (and lists, when returning to a version before 1.1.0). Retain the newer data copy and all backups until the recovery is verified.
 
 There is no automatic downgrade or automatic overwrite of user data. Beta users can restore their pre-beta snapshot before returning to the previous stable image.
+
+### Shopping lists removed in 1.1.0
+
+Groly 1.1.0 removes the shopping-list feature. Its migration permanently deletes these tables and all their rows, including lists shared with other users: `lists`, `list_members`, `list_notification_prefs`, `items`, `favorites`, `category_preferences`, `item_history` and `recipe_ingredient_exclusions`. Recipes, meal plans, nutrition, supplements and all tracker logs are kept. The automatic pre-upgrade snapshot described above still contains the shopping lists; to get them back, restore that snapshot together with the previous image. Keep an independent backup before updating if you may want them later.
+
+### Sign-in sessions and unused images in 1.1.0
+
+Sessions are now stored as SHA-256 hashes. Existing sessions are converted once on the first start, so nobody is signed out. Uploaded images that no recipe, meal or favourite references any more are deleted daily once they are older than a day; the automatic pre-upgrade snapshot still contains them.
 
 ### Existing meal plans
 
@@ -75,9 +83,17 @@ Image und Compose-Beispiel gewähren zehn Minuten Anlaufzeit für den Healthchec
 3. Eine abgeschlossene Sicherung auswählen. Manifest, sämtliche Dateigrößen/Prüfsummen und `PRAGMA integrity_check` prüfen. Keine `.partial-*`-Ordner verwenden.
 4. Aktuelle Datenbank und ihre `-wal`-/`-shm`-Dateien in die separate Sicherheitskopie verschieben. Sicherungsdatenbank an den mit `DATABASE_URL` festgelegten Ort kopieren. Keine alten WAL-/SHM-Dateien neben der wiederhergestellten Datenbank belassen.
 5. Aktuellen Upload-Ordner in die Sicherheitskopie verschieben. Bilder aus **derselben Sicherung** nach `uploads` kopieren; ohne gesicherte Bilder einen leeren Ordner anlegen. Verschiedene Sicherungsstände nicht mischen.
-6. Passendes vorheriges Image mit ursprünglichem Volume und unveränderten Umgebungsvariablen starten. Anmeldung, Listen, Rezepte, Tracker und Bilder prüfen. Neuere Datenkopie und Sicherungen bis zum erfolgreichen Abschluss behalten.
+6. Passendes vorheriges Image mit ursprünglichem Volume und unveränderten Umgebungsvariablen starten. Anmeldung, Rezepte, Tracker und Bilder prüfen (bei Rückkehr zu einer Version vor 1.1.0 auch Listen). Neuere Datenkopie und Sicherungen bis zum erfolgreichen Abschluss behalten.
 
 Es gibt kein automatisches Downgrade und kein automatisches Überschreiben von Nutzerdaten. Vor der Rückkehr von Beta zu vorherigem Stable kann die Vor-Beta-Sicherung wiederhergestellt werden.
+
+### Einkaufslisten in 1.1.0 entfernt
+
+Groly 1.1.0 entfernt die Einkaufslisten. Die Migration löscht diese Tabellen mit allen Einträgen endgültig, auch mit anderen geteilte Listen: `lists`, `list_members`, `list_notification_prefs`, `items`, `favorites`, `category_preferences`, `item_history` und `recipe_ingredient_exclusions`. Rezepte, Wochenpläne, Ernährung, Supplements und alle Tracker-Einträge bleiben erhalten. Die automatische Sicherung vor dem Update enthält die Listen weiterhin; wer sie zurück möchte, stellt diese Sicherung zusammen mit dem vorherigen Image wieder her. Vor dem Update eine unabhängige Sicherung behalten, falls die Listen später noch gebraucht werden.
+
+### Anmeldesitzungen und ungenutzte Bilder in 1.1.0
+
+Sitzungen werden jetzt als SHA-256-Hash gespeichert. Bestehende Sitzungen werden beim ersten Start einmalig umgewandelt, niemand wird abgemeldet. Hochgeladene Bilder, die kein Rezept, keine Mahlzeit und kein Favorit mehr verwendet, werden täglich gelöscht, sobald sie älter als einen Tag sind; die automatische Sicherung vor dem Update enthält sie weiterhin.
 
 ### Ältere Essenspläne
 

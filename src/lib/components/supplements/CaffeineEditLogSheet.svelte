@@ -9,6 +9,7 @@
 		defaultMl: number;
 		defaultCaffeineMg: number;
 		time: string; // "HH:MM"
+		date?: string; // YYYY-MM-DD of the log; editing the time must not move it to today
 	};
 
 	let {
@@ -38,7 +39,7 @@
 		saving = true;
 		try {
 			const [h, min] = sheet.time.split(':').map(Number);
-			const d = new Date();
+			const d = sheet.date ? new Date(`${sheet.date}T00:00:00`) : new Date();
 			d.setHours(h, min, 0, 0);
 			await fetch(`/api/caffeine-logs/${sheet.id}`, {
 				method: 'PUT',

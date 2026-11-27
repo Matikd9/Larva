@@ -3,10 +3,11 @@ import type { RequestHandler } from './$types';
 import { authGuard } from '#lib/auth/middleware';
 import { db } from '#lib/db';
 import { meals, mealComponents, caffeineDrinks, caffeineLogs } from '#lib/db/schema';
-import { and, eq, asc, gte, lte, inArray } from 'drizzle-orm';
+import { and, eq, asc, gte, lte, inArray, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { effectiveGrams, mealCaffeineLogPrefix, componentMicrosPer100, buildMealComponentRows, isValidDateKey } from '#lib/server/nutrition';
 import { timeZoneFromSettings, zonedDateTimeToTimestamp } from '#lib/timeZones';
+import { aggregateMicroCoverage } from '#lib/micronutrients';
 
 function isValidTime(t: unknown): t is string {
 	return typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
@@ -19,6 +20,35 @@ export const GET: RequestHandler = async (event) => {
 	const date = event.url.searchParams.get('date');
 	const from = event.url.searchParams.get('from');
 	const to = event.url.searchParams.get('to');
+
+	// History: one row of totals per day, summed in SQL instead of shipping every component.
+	if (event.url.searchParams.get('summary') === '1' && isValidDateKey(from) && isValidDateKey(to)) {
+		const days = db.select({
+			date: meals.date,
+			meals: sql<number>`count(distinct ${meals.id})`,
+			kcal: sql<number>`coalesce(sum(${mealComponents.kcal}), 0)`,
+			protein: sql<number>`coalesce(sum(${mealComponents.protein}), 0)`,
+			fat: sql<number>`coalesce(sum(${mealComponents.fat}), 0)`,
+			carbs: sql<number>`coalesce(sum(${mealComponents.carbs}), 0)`,
+			fiber: sql<number>`coalesce(sum(${mealComponents.fiber}), 0)`
+		}).from(meals)
+			.leftJoin(mealComponents, eq(mealComponents.mealId, meals.id))
+			.where(and(eq(meals.userId, user.id), gte(meals.date, from), lte(meals.date, to)))
+			.groupBy(meals.date)
+			.orderBy(asc(meals.date))
+			.all();
+		return Response.json({ days });
+	}
+
+	// History: micronutrient sums for a range, with the share of kcal that actually reports each one.
+	if (event.url.searchParams.get('micros') === '1' && isValidDateKey(from) && isValidDateKey(to)) {
+		const components = db.select({ date: meals.date, kcal: mealComponents.kcal, microsJson: mealComponents.microsJson })
+			.from(mealComponents)
+			.innerJoin(meals, eq(mealComponents.mealId, meals.id))
+			.where(and(eq(meals.userId, user.id), gte(meals.date, from), lte(meals.date, to)))
+			.all();
+		return Response.json({ ...aggregateMicroCoverage(components), loggedDays: new Set(components.map(c => c.date)).size });
+	}
 
 	let rows;
 	if (isValidDateKey(date)) {

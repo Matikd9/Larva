@@ -1,12 +1,12 @@
-import { bootstrapAdmin } from '#lib/auth';
+import { bootstrapAdmin, hashLegacySessions } from '#lib/auth';
 import { runMigrations, db, sqlite } from '#lib/db';
 import { appMeta, pushSubscriptions, users } from '#lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { LATEST_CHANGES } from '#lib/changelog';
 import { sendPushToUser } from './pushNotifications';
-import { subsSize } from './userEvents';
 import { attemptsSize } from './loginRateLimit';
 import { cleanupBarcodeCache, cleanupOldData } from './cleanup';
+import { cleanupOrphanUploads } from './uploads';
 import { scheduleNextReminderCheck } from './reminders';
 import { GENERIC_FOODS } from './genericFoodsSeed';
 import { prepareUpgradeBackup, markSuccessfulStart } from './upgradeBackup';
@@ -15,21 +15,6 @@ import { bootstrapSupplementCatalog, seedAllEmptyUsersDefaultSupplements } from 
 let initialization: Promise<void> | undefined;
 let status: 'starting' | 'ready' | 'failed' = 'starting';
 export function startupStatus() { return status; }
-
-function migrateItemHistory() {
-	const done = db.select().from(appMeta).where(eq(appMeta.key, 'item_history_migrated')).get();
-	if (done) return;
-
-	db.run(sql`
-		INSERT OR IGNORE INTO item_history (user_id, name, use_count, last_used_at)
-		SELECT l.owner_id, i.name, COUNT(*) AS use_count, MAX(i.updated_at) AS last_used_at
-		FROM items i
-		JOIN lists l ON i.list_id = l.id
-		GROUP BY l.owner_id, i.name
-	`);
-
-	db.insert(appMeta).values({ key: 'item_history_migrated', value: '1' }).onConflictDoNothing().run();
-}
 
 function ensureSupplementLogNoteColumn() {
 	// Migration 0031 was silently skipped on prod DBs because its journal `when`-timestamp
@@ -214,7 +199,7 @@ function logMemoryUsage() {
 	const m = process.memoryUsage();
 	const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(2);
 	console.log(
-		`[groly:mem] rss=${mb(m.rss)}MB heap=${mb(m.heapUsed)}/${mb(m.heapTotal)}MB ext=${mb(m.external)}MB sse=${subsSize()} ratelimit=${attemptsSize()}`
+		`[groly:mem] rss=${mb(m.rss)}MB heap=${mb(m.heapUsed)}/${mb(m.heapTotal)}MB ext=${mb(m.external)}MB ratelimit=${attemptsSize()}`
 	);
 }
 
@@ -363,7 +348,7 @@ async function initialize() {
 	ensureMicrosColumns();
 	bootstrapGenericFoods();
 	bootstrapAdmin();
-	migrateItemHistory();
+	hashLegacySessions();
 	bootstrapCaffeineTables();
 	bootstrapMoodTables();
 	bootstrapSupplementCatalog();
@@ -374,6 +359,8 @@ async function initialize() {
 	markSuccessfulStart(sqlite, LATEST_CHANGES.version);
 	setInterval(cleanupBarcodeCache, 24 * 60 * 60 * 1000);
 	setInterval(cleanupOldData, 24 * 60 * 60 * 1000);
+	void cleanupOrphanUploads();
+	setInterval(() => void cleanupOrphanUploads(), 24 * 60 * 60 * 1000);
 	scheduleNextReminderCheck();
 	logMemoryUsage();
 	setInterval(logMemoryUsage, 60 * 60 * 1000); // stündlich

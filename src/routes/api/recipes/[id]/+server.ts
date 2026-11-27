@@ -92,7 +92,7 @@ export const PUT: RequestHandler = async (event) => {
 			const ing = ingredients[i];
 			if (!ing.name?.trim()) continue;
 			if (ing.id && existingIds.has(ing.id)) {
-				// Update in place — preserves ID so exclusions survive
+				// Update in place — keeps the ID the nutrition mapping refers to
 				db.update(recipeIngredients).set({
 					amount: ing.amount?.trim() || null,
 					unit: ing.unit?.trim() || null,
@@ -114,7 +114,7 @@ export const PUT: RequestHandler = async (event) => {
 			}
 		}
 
-		// Delete removed ingredients (CASCADE removes their exclusions)
+		// Delete removed ingredients
 		for (const old of existing) {
 			if (!keptIds.has(old.id)) {
 				db.delete(recipeIngredients).where(eq(recipeIngredients.id, old.id)).run();

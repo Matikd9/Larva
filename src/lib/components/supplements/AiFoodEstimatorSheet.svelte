@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t } from '#lib/i18n.svelte';
+	import { t, ai_error_message } from '#lib/i18n.svelte';
 	import { goto } from '$app/navigation';
 	import { userSettings } from '#lib/userSettings.svelte';
 	import ManageSheetShell from './ManageSheetShell.svelte';
@@ -197,7 +197,7 @@
 					isNoApiKey = true;
 					errorMessage = t.ai_nutrition_no_api_key;
 				} else {
-					errorMessage = data.message || 'Error processing with AI.';
+					errorMessage = ai_error_message(data.error);
 				}
 				return;
 			}

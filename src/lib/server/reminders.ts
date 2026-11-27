@@ -1,5 +1,6 @@
 import { db } from '#lib/db';
 import {
+	appMeta,
 	supplements,
 	supplementLogs,
 	supplementReminderSchedules,
@@ -16,8 +17,7 @@ import { sendPushToUser } from './pushNotifications';
 import { matchSupplementReminderLogs } from '#lib/supplementReminderMatching';
 import { getZonedDateTimeParts, timeZoneFromSettings, zonedDateTimeToTimestamp } from '#lib/timeZones';
 
-async function checkSupplementReminders() {
-	const now = new Date();
+async function checkSupplementReminders(now: Date) {
 
 	// Load all active schedules with supplement name, userId and user language
 	const activeSchedules = db
@@ -94,12 +94,11 @@ async function checkSupplementReminders() {
 			: `${list.slice(0, -1).join(', ')} & ${list[list.length - 1]}`;
 		const title = lang === 'en' ? 'Supplement Reminder' : 'Supplement-Erinnerung';
 		const body = lang === 'en' ? `Time to take: ${nameList}` : `Zeit für die Einnahme von: ${nameList}`;
-		return sendPushToUser(userId, { title, body, url: '/tracker?action=log-supplement', tag: 'supplement-reminder' });
+		return sendPushToUser(userId, { title, body, url: '/?action=log-supplement', tag: 'supplement-reminder' });
 	}));
 }
 
-async function checkWaterReminders() {
-	const now = new Date();
+async function checkWaterReminders(now: Date) {
 
 	const activeSchedules = db
 		.select({
@@ -179,13 +178,12 @@ async function checkWaterReminders() {
 			const lang = settings?.lang === 'en' ? 'en' : 'de';
 			const title = lang === 'en' ? 'Hydration Tracker' : 'Wassertracker';
 			const body = lang === 'en' ? 'Time for a glass of water (250 ml)' : 'Zeit für ein Glas Wasser (250 ml)';
-			return sendPushToUser(userId, { title, body, url: '/tracker?action=log-water', tag: 'water-reminder' });
+			return sendPushToUser(userId, { title, body, url: '/?action=log-water', tag: 'water-reminder' });
 		})
 	);
 }
 
-async function checkMeditationReminders() {
-	const now = new Date();
+async function checkMeditationReminders(now: Date) {
 
 	const activeSchedules = db
 		.select({
@@ -224,14 +222,13 @@ async function checkMeditationReminders() {
 				const lang = settings?.lang === 'en' ? 'en' : 'de';
 				const title = lang === 'en' ? 'Meditation' : 'Meditation';
 				const body = lang === 'en' ? 'Time for your daily meditation' : 'Zeit für deine tägliche Meditation';
-				return sendPushToUser(s.userId, { title, body, url: '/tracker?action=log-meditation', tag: 'meditation-reminder' });
+				return sendPushToUser(s.userId, { title, body, url: '/?action=log-meditation', tag: 'meditation-reminder' });
 			} catch { /* skip invalid */ }
 		})
 	);
 }
 
-async function checkMoodReminders() {
-	const now = new Date();
+async function checkMoodReminders(now: Date) {
 
 	const activeSchedules = db
 		.select({
@@ -270,21 +267,46 @@ async function checkMoodReminders() {
 				const lang = settings?.lang === 'en' ? 'en' : 'de';
 				const title = lang === 'en' ? 'How was your day?' : 'Wie war dein Tag?';
 				const body = lang === 'en' ? 'Rate your day in Groly' : 'Bewerte deinen Tag in Groly';
-				return sendPushToUser(s.userId, { title, body, url: '/tracker?action=log-mood', tag: 'mood-reminder' });
+				return sendPushToUser(s.userId, { title, body, url: '/?action=log-mood', tag: 'mood-reminder' });
 			} catch { /* skip invalid */ }
 		})
 	);
 }
 
+const CHECKED_UNTIL_KEY = 'reminders_checked_until';
+const CATCH_UP_MS = 15 * 60_000;
+
+/**
+ * Minute starts in (checkedUntil, now], at most the last 15 minutes. A late timer tick or a restart
+ * catches up the reminders it skipped; consecutive windows never overlap, so nothing fires twice.
+ */
+export function minutesToCheck(checkedUntil: number | null, now: number): number[] {
+	const from = Math.max(checkedUntil ?? now - 60_000, now - CATCH_UP_MS);
+	const minutes: number[] = [];
+	for (let minute = Math.floor(from / 60_000) * 60_000 + 60_000; minute <= now; minute += 60_000) minutes.push(minute);
+	return minutes;
+}
+
+async function runReminderChecks() {
+	const now = Date.now();
+	const stored = db.select({ value: appMeta.value }).from(appMeta).where(eq(appMeta.key, CHECKED_UNTIL_KEY)).get();
+	for (const minute of minutesToCheck(stored ? Number(stored.value) : null, now)) {
+		const at = new Date(minute);
+		await Promise.allSettled([
+			checkSupplementReminders(at).catch(console.error),
+			checkWaterReminders(at).catch(console.error),
+			checkMeditationReminders(at).catch(console.error),
+			checkMoodReminders(at).catch(console.error)
+		]);
+	}
+	db.insert(appMeta).values({ key: CHECKED_UNTIL_KEY, value: String(now) })
+		.onConflictDoUpdate({ target: appMeta.key, set: { value: String(now) } }).run();
+}
+
 export function scheduleNextReminderCheck() {
 	const msUntilNextMinute = 60_000 - (Date.now() % 60_000);
 	setTimeout(async () => {
-		await Promise.allSettled([
-			checkSupplementReminders().catch(console.error),
-			checkWaterReminders().catch(console.error),
-			checkMeditationReminders().catch(console.error),
-			checkMoodReminders().catch(console.error)
-		]);
+		await runReminderChecks().catch(console.error);
 		scheduleNextReminderCheck();
 	}, msUntilNextMinute);
 }

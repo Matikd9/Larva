@@ -2,7 +2,7 @@ import { db } from '#lib/db';
 import { userInvites, users, sessions } from '#lib/db/schema';
 import { and, eq, isNull, lte, desc } from 'drizzle-orm';
 import { randomBytes, createHash } from 'crypto';
-import { changePassword, generateId, now } from './index';
+import { changePassword, generateId, now, sessionKey } from './index';
 
 const INVITE_TTL_SECONDS = 48 * 60 * 60; // 48h
 
@@ -68,7 +68,7 @@ export function consumeInvite(token: string, newPassword: string): { sessionId: 
 	const expiresAt = ts + 60 * 60 * 24 * 30;
 	db.transaction(() => {
 		changePassword(inv.userId, newPassword);
-		db.insert(sessions).values({ id: sessionId, userId: inv.userId, expiresAt, createdAt: ts }).run();
+		db.insert(sessions).values({ id: sessionKey(sessionId), userId: inv.userId, expiresAt, createdAt: ts }).run();
 		db.update(users).set({ lastLoginAt: ts }).where(eq(users.id, inv.userId)).run();
 	});
 

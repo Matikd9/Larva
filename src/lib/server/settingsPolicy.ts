@@ -5,9 +5,7 @@ type Kind = 'string' | 'number' | 'boolean' | 'array' | 'object';
 // Every setting the app knows, with the JSON type the server accepts for it.
 const SETTING_KINDS: Record<keyof UserSettings, Kind> = {
 	lang: 'string', timeZone: 'string', theme: 'string', colorScheme: 'string',
-	categorySortEnabled: 'boolean', categoryOrder: 'array', listCategorySettings: 'object', shortcuts: 'array',
-	locationNavEnabled: 'boolean', listLocationDisabled: 'array', itemLayout: 'string', showAllCheckedItems: 'boolean',
-	showFavoriteIndicator: 'boolean', showSupplementTracker: 'boolean', showRecipes: 'boolean', supplementSortOrder: 'string',
+	shortcuts: 'array', showRecipes: 'boolean', supplementSortOrder: 'string',
 	waterTrackerEnabled: 'boolean', waterGoalMl: 'number', waterPresets: 'array',
 	caffeineTrackerEnabled: 'boolean', caffeineLimitMg: 'number', caffeineHiddenDrinks: 'array', caffeineCustomAmounts: 'object',
 	meditationTrackerEnabled: 'boolean', meditationDailyGoalMinutes: 'number', meditationDefaultDurationMinutes: 'number',
@@ -15,7 +13,7 @@ const SETTING_KINDS: Record<keyof UserSettings, Kind> = {
 	moodTrackerEnabled: 'boolean', moodWeeklyReviewEnabled: 'boolean', dismissedMoodWeeklyReviewWeek: 'string',
 	nutritionTrackerEnabled: 'boolean', nutritionMealSubdivisionsEnabled: 'boolean',
 	aiNutritionProvider: 'string', aiGeminiApiKey: 'string', aiGeminiModel: 'string', aiOpenaiApiKey: 'string', aiOpenaiModel: 'string',
-	hiddenMoodTags: 'array', greetingEnabled: 'boolean', wakeLockLists: 'boolean', wakeLockRecipes: 'boolean', wakeLockMeditation: 'boolean'
+	hiddenMoodTags: 'array', greetingEnabled: 'boolean', wakeLockRecipes: 'boolean', wakeLockMeditation: 'boolean'
 };
 
 const API_KEY_FIELDS = ['aiGeminiApiKey', 'aiOpenaiApiKey', 'aiNutritionApiKey'];

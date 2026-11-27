@@ -7,19 +7,17 @@
 	import { matchSupplementReminderLogs } from '#lib/supplementReminderMatching';
 	import SupplementWeekPlan, { type WeekSchedule } from './SupplementWeekPlan.svelte';
 
-	type Section = 'today' | 'history' | 'nutrition';
+	type Section = 'home' | 'history';
 	type ReminderEntry = { scheduleId: string; supplementId: string; name: string };
 	type Reminder = { time: string; entries: ReminderEntry[]; names: string[] };
 	type LogRef = { supplementId: string; loggedAt: number };
 
 	let {
 		activeSection,
-		nutritionEnabled,
 		todayLogs = null,
 		historyControls = null
 	}: {
 		activeSection: Section;
-		nutritionEnabled: boolean;
 		todayLogs?: LogRef[] | null;
 		historyControls?: Snippet | null;
 	} = $props();
@@ -181,38 +179,10 @@
 		}
 	}
 
-	function navigate(section: Section) {
-		if (section === 'today') void goto('/tracker', { reset: false });
-		else if (section === 'history') void goto('/tracker?tab=history', { reset: false });
-		else void goto('/tracker/nutrition');
-	}
-
-	function accent(section: Section): string {
-		if (activeSection !== section) return 'var(--color-on-surface-variant)';
-		return section === 'nutrition' ? 'var(--color-tracker-nutrition)' : 'var(--color-primary)';
-	}
-
 	onMount(loadReminderState);
 </script>
 
 <div class="tracker-section-nav">
-	<nav class:two-tabs={!nutritionEnabled} class="tracker-section-tabs inset-row-divider" aria-label={t.supplement_title}>
-		<button type="button" onclick={() => navigate('today')} aria-current={activeSection === 'today' ? 'page' : undefined}
-			style="color: {accent('today')}">
-			{t.supplement_tab_today}
-		</button>
-		<button type="button" onclick={() => navigate('history')} aria-current={activeSection === 'history' ? 'page' : undefined}
-			style="color: {accent('history')}">
-			{t.supplement_tab_history}
-		</button>
-		{#if nutritionEnabled}
-			<button type="button" onclick={() => navigate('nutrition')} aria-current={activeSection === 'nutrition' ? 'page' : undefined}
-				style="color: {accent('nutrition')}">
-				{t.nutrition_label}
-			</button>
-		{/if}
-	</nav>
-
 	{#if activeSection === 'history' && historyControls}
 		<div class="tracker-section-history">{@render historyControls()}</div>
 	{:else}
@@ -258,10 +228,6 @@
 
 <style>
 	.tracker-section-nav { min-width: 0; }
-	.tracker-section-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0 8px; }
-	.tracker-section-tabs.two-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-	.tracker-section-tabs button { min-width: 0; min-height: 44px; padding: 8px 4px; background: transparent; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; transition: color 160ms cubic-bezier(0.2, 0.8, 0.2, 1); }
-	.tracker-section-tabs button:active { opacity: .7; }
 	.tracker-section-actions { display: flex; min-height: 40px; align-items: stretch; }
 	.tracker-section-actions > button { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: center; gap: 7px; padding: 6px 10px; color: var(--color-on-surface-variant); font-size: 13px; font-weight: 550; }
 	.tracker-section-actions > button:active { opacity: .7; }
@@ -274,6 +240,6 @@
 	.tracker-reminder-retry { min-height: 36px; padding: 6px 8px; color: var(--color-primary); }
 	.tracker-section-nav button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -3px; }
 	@media (prefers-reduced-motion: reduce) {
-		.tracker-section-tabs button, .reminder-action svg:last-child { transition: none; }
+		.reminder-action svg:last-child { transition: none; }
 	}
 </style>

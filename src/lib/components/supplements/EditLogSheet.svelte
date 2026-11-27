@@ -11,6 +11,7 @@
 		unit: string;
 		amount: number;
 		time: string;
+		date?: string; // YYYY-MM-DD of the log; editing the time must not move it to today
 		note: string | null;
 	};
 	type CreateLogSheetType = { date: string };
@@ -40,7 +41,7 @@
 		saving = true;
 		try {
 			const [hours, minutes] = sheet.time.split(':').map(Number);
-			const date = new Date();
+			const date = sheet.date ? new Date(`${sheet.date}T00:00:00`) : new Date();
 			date.setHours(hours, minutes, 0, 0);
 			await fetch(`/api/supplement-logs/${sheet.id}`, {
 				method: 'PUT',

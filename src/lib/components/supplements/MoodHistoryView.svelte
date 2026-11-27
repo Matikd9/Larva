@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { t, currentLang } from '#lib/i18n.svelte';
+	import { t, currentLang, history_no_comparison } from '#lib/i18n.svelte';
+	import { MIN_COMPARE_DAYS } from '#lib/historyMetrics';
 	import { toLocalDateKey, todayKey } from '#lib/dates';
 	import { getMoodLevel, MOOD_LEVELS, findTag } from '#lib/mood';
 	import MoodDayDetailSheet from './MoodDayDetailSheet.svelte';
@@ -23,13 +24,19 @@
 		fixedView = null as 'today' | 'week' | 'month' | null,
 		parentDate = null as string | null,
 		hasDayEntry = $bindable(false),
-		embedded = false
+		embedded = false,
+		onselectday = undefined as ((dateStr: string) => void) | undefined,
+		comparison = null as string | null
 	}: {
 		onreload: () => void;
 		fixedView?: 'today' | 'week' | 'month' | null;
 		parentDate?: string | null;
 		hasDayEntry?: boolean;
 		embedded?: boolean;
+		/** History: a day opens the home screen at that date instead of the inline preview. */
+		onselectday?: (dateStr: string) => void;
+		/** History: comparison with the previous period, shown instead of the half-vs-half trend. */
+		comparison?: string | null;
 	} = $props();
 
 	type View = 'week' | 'month';
@@ -215,6 +222,7 @@
 
 	// History-view tap: toggle inline preview for days with entries; for empty days, fall back to add-sheet
 	function handleHistoryDayTap(dateStr: string) {
+		if (onselectday) { onselectday(dateStr); return; }
 		const entry = logMap.get(dateStr);
 		if (entry) {
 			previewedDate = previewedDate === dateStr ? null : dateStr;
@@ -376,7 +384,9 @@
 		{#if moodSummary}
 			<div class="flex items-center gap-1 shrink-0 text-xs font-semibold tabular-nums" style="color: var(--color-on-surface-variant)">
 				<span>Ø {moodSummary.avg.toFixed(1)}<span style="opacity: 0.6">/5</span></span>
-				{#if moodSummary.trend === 'up'}
+				{#if onselectday}
+					<!-- trend arrow replaced by the period comparison below the calendar -->
+				{:else if moodSummary.trend === 'up'}
 					<svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><polygon points="5,1 9,8 1,8"/></svg>
 				{:else if moodSummary.trend === 'down'}
 					<svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><polygon points="1,2 9,2 5,9"/></svg>
@@ -392,6 +402,9 @@
 	{#if expanded}
 		<div class={embedded ? 'history-section-content' : 'px-4 pb-4 pt-3'}>
 			{@render calendarContent()}
+			{#if onselectday}
+				<p class="text-xs mt-2" style="color: var(--color-on-surface-variant)">{comparison ?? history_no_comparison(fixedView === 'month' ? 'month' : 'week', MIN_COMPARE_DAYS[fixedView === 'month' ? 'month' : 'week'])}</p>
+			{/if}
 			{#if fixedView === 'week'}
 				{@const range = getDateRange()}
 				<MoodWeeklyReview {logs} from={range.from} to={range.to} />

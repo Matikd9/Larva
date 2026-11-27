@@ -13,7 +13,7 @@ export const GET: RequestHandler = async (event) => {
 	let from = Number(event.url.searchParams.get('from'));
 	let to = Number(event.url.searchParams.get('to'));
 
-	if (!['day', 'week', 'month'].includes(period)) {
+	if (!['day', 'week', 'month', 'year'].includes(period)) {
 		return Response.json({ error: 'Invalid period' }, { status: 400 });
 	}
 
@@ -62,7 +62,7 @@ export const GET: RequestHandler = async (event) => {
 
 	// Load all user supplements + their active schedules (needed for adherence even when nothing logged)
 	const allUserSupplements = db
-		.select({ id: supplements.id, name: supplements.name, unit: supplements.unit })
+		.select({ id: supplements.id, name: supplements.name, unit: supplements.unit, createdAt: supplements.createdAt })
 		.from(supplements)
 		.where(eq(supplements.userId, user!.id))
 		.all();
